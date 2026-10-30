@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: user-info
+  profiles:
+    active: dev
+    # include:
+  cloud:
+    nacos:
+      server-addr: 192.144.229.116:8848
+
+      config:
+        namespace: ${spring.profiles.active:dev}
+        import-check:
+          enabled: false
+logging:
+  level:
+    com.alibaba.cloud.nacos: DEBUG
+    org.template: DEBUG
+---
+spring:
+  config:
+    import:
+      - nacos:datasource.properties?group=DEFAULT_GROUP
+      - nacos:redis-config.properties?group=DEFAULT_GROUP
+      - nacos:minio.properties?group=AUTH_GROUP
+    activate:
+      on-profile: dev
+---
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+server:
+  port: 8080

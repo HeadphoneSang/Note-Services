@@ -1,0 +1,6 @@
+微服务	主要职责
+Gateway	统一入口、JWT 校验、路由转发
+Auth Service	登录、注册、JWT 签发、刷新
+User Service	用户资料、个人信息管理
+Note Service	笔记 CRUD、笔记权限
+File Service	文件上传、下载、MinIO 管理
