@@ -3,7 +3,7 @@ package com.chcbcraft.dto.dto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.template.model.NoteBlock;
+import com.chcbcraft.dto.NoteBlock;
 
 import java.util.List;
 

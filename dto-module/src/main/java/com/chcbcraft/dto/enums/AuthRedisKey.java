@@ -1,0 +1,37 @@
+package com.chcbcraft.dto.enums;
+
+/**
+ * 认证域 Redis Key — auth 服务与 gateway 共用
+ * <p>
+ * key 模式与拆分前 note-module 的 RedisKey 保持一致，保证存量 Redis 数据兼容。
+ * logout 黑名单此前存在「写入 key 与检查 key 不一致」的 bug，
+ * 现统一以 {@link #LOGOUT_TOKEN} 为准。
+ */
+public enum AuthRedisKey {
+
+    /** 图形验证码，参数 uuid */
+    CAPTCHA      ("note_backbond:captcha:%s"),
+
+    /** 邮箱验证码，参数 email */
+    EMAIL_CODE   ("note_backbond:email:code:%s"),
+
+    /** 登录失败计数，参数 account */
+    LOGIN_FAIL   ("note_backbond:login:fail:%s"),
+
+    /** 账号锁定，参数 account */
+    LOGIN_LOCK   ("note_backbond:login:lock:%s"),
+
+    /** Token 注销黑名单（Set，无参数） */
+    LOGOUT_TOKEN ("note_backbond:logout:token"),
+    ;
+
+    private final String pattern;
+
+    AuthRedisKey(String pattern) {
+        this.pattern = pattern;
+    }
+
+    public String build(Object... args) {
+        return String.format(this.pattern, args);
+    }
+}
