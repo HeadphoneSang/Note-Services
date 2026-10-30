@@ -10,6 +10,10 @@ spring:
           uri: lb://note
           predicates:
             - Path=/api/note/**
+        - id: auth
+          uri: lb://auth
+          predicates:
+            - Path=/api/auth/**
       default-filters:
         - RewritePath=/api/.*?/(?<segment>.*), /$\{segment}
     nacos:

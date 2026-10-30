@@ -37,6 +37,13 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
+        <!-- 共享 AuthRedisKey（logout 黑名单 key 统一口径） -->
+        <dependency>
+            <groupId>com.chbcraft</groupId>
+            <artifactId>dto-module</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
         <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

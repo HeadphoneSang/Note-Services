@@ -1,5 +1,6 @@
 package com.chbcraft.gateway.filter;
 
+import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.gateway.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -31,8 +32,8 @@ public class GlobalJwtFilter implements GlobalFilter {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    /** Redis 中存储已注销 token 的 Set 的 key */
-    private static final String LOGOUT_TOKEN_SET_KEY = "logout:token";
+    /** Redis 中存储已注销 token 的 Set 的 key（与 auth 服务 logout 接口同一口径） */
+    private static final String LOGOUT_TOKEN_SET_KEY = AuthRedisKey.LOGOUT_TOKEN.build();
 
     @Autowired
     public GlobalJwtFilter(JwtUtils jwtUtils, StringRedisTemplate stringRedisTemplate){
@@ -40,12 +41,14 @@ public class GlobalJwtFilter implements GlobalFilter {
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    // 不需要鉴权的接口
+    // 不需要鉴权的接口（均属 auth 服务）
     private static final List<String> WHITE_LIST = List.of(
-            "/api/user/login",
-            "/api/note/user/login",
-            "/api/user/register",
-            "/api/user/refresh"
+            "/api/auth/user/login",
+            "/api/auth/user/register",
+            "/api/auth/user/send-email-code",
+            "/api/auth/user/email-login",
+            "/api/auth/user/token-info",
+            "/api/auth/captcha"
     );
 
     @Override
