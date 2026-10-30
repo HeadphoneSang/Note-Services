@@ -3,7 +3,6 @@ package com.chbcraft.auth.config;
 import com.chbcraft.auth.interceptor.UserContextInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -13,15 +12,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Autowired
     private UserContextInterceptor userContextInterceptor;
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("*")
-                .allowedHeaders("*")
-                .allowCredentials(true)
-                .maxAge(3600);
-    }
+    // 跨域由网关统一处理（002-gateway-cors），下游不再配置 CORS，避免重复 ACAO 头
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
