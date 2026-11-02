@@ -35,4 +35,4 @@ spring:
     activate:
       on-profile: dev
 server:
-  port: 80
+  port: 8080
