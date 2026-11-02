@@ -1,4 +1,4 @@
-FROM openjdk:1.7
+FROM eclipse-temurin:17-jre
 COPY target/auth-module-1.0-SNAPSHOT.jar /execs/auth.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/execs/auth.jar"]
