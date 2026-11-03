@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - module: note-module
-            image: note-service
+            image: note-service 
           - module: auth-module
             image: auth-service
           - module: gateway-module
