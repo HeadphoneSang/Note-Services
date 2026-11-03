@@ -60,3 +60,5 @@ jobs:
           tags: |
             ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest
             ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
