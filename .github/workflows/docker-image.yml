@@ -36,9 +36,13 @@ jobs:
           javac -version
 
       # 3. Maven 构建
-      - name: Build with Maven
-        run: |
-          mvn -B -pl ${{ matrix.module }} -am package -DskipTests
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
       # 4. 登录腾讯云 TCR
       - name: Login to Tencent TCR
