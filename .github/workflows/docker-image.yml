@@ -69,9 +69,3 @@ jobs:
         run: |
           docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest
           docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }}
-
-
-
-
-
-
