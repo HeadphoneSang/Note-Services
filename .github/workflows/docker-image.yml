@@ -1,17 +1,13 @@
 name: Build and Push Docker Images
-
 on:
   push:
     branches:
       - main
-
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: self-hosted
-
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -23,7 +19,6 @@ jobs:
             image: auth-service
           - module: gateway-module
             image: gateway-service
-
     steps:
       # 1. 拉取代码
       - name: Checkout

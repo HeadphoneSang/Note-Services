@@ -1,0 +1,35 @@
+name: note-app
+services:
+  gateway:
+    image: ${TCR_REGISTRY}/gateway-service:latest
+    container_name: gateway-service
+    restart: always
+    ports:
+      - "80:${SERVER_PORT}"
+    env_file:
+      - .env
+    networks:
+      - note-network
+  login-service:
+    image: ${TCR_REGISTRY}/auth-service:latest
+    container_name: auth-service
+    restart: always
+    ports:
+      - "8081:${SERVER_PORT}"
+    env_file:
+      - .env
+    networks:
+      - note-network
+  note-service:
+    image: ${TCR_REGISTRY}/note-service:latest
+    container_name: note-service
+    restart: always
+    ports:
+      - "8082:${SERVER_PORT}"
+    env_file:
+      - .env
+    networks:
+      - note-network
+networks:
+  note-network:
+    driver: bridge
