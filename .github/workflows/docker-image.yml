@@ -54,7 +54,7 @@ jobs:
       # 5. Maven 编译打包
       - name: Maven Build
         run: |
-          mvn clean package -DskipTests
+          mvn clean package -pl ${{ matrix.module }} -am -DskipTests
       # 6. 构建 Docker 镜像
       - name: Build Docker Image
         run: |
