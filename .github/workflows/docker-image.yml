@@ -51,20 +51,24 @@ jobs:
           registry: ccr.ccs.tencentyun.com
           username: ${{ secrets.TCR_USERNAME }}
           password: ${{ secrets.TCR_PASSWORD }}
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      # 5. 构建并推送镜像
-      - name: Build and Push
-        uses: docker/build-push-action@v6
-        with:
-          context: ./${{ matrix.module }}/
-          file: ${{ matrix.module }}/Dockerfile
-          push: true
-          tags: |
-            ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest
-            ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # 5. Maven 编译打包
+      - name: Maven Build
+        run: |
+          mvn clean package -DskipTests
+      # 6. 构建 Docker 镜像
+      - name: Build Docker Image
+        run: |
+          docker build \
+            -t ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest \
+            -t ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }} \
+            -f ${{ matrix.module }}/Dockerfile \
+            ${{ matrix.module }}
+
+      # 7. 推送 Docker 镜像
+      - name: Push Docker Image
+        run: |
+          docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest
+          docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }}
 
 
 
