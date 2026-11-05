@@ -25,6 +25,7 @@
         <module>userInfo-module</module>
         <module>dto-module</module>
         <module>auth-module</module>
+        <module>deploy-module</module>
     </modules>
     <groupId>com.chbcraft</groupId>
     <artifactId>noteback</artifactId>

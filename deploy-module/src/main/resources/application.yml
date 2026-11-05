@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: deploy
+server:
+  port: 8083
+deploy:
+  # webhook 鉴权 token，由 GitHub Actions 仓库 secret DEPLOY_WEBHOOK_TOKEN 注入；
+  # 未配置（空）时拒绝所有请求，防止裸奔
+  webhook-token: ${DEPLOY_WEBHOOK_TOKEN:}
+  # 部署脚本路径（相对本服务工作目录，或绝对路径）
+  script-path: ${DEPLOY_SCRIPT_PATH:scripts/deploy.sh}
