@@ -29,7 +29,7 @@ class ProcessScriptRunnerTest {
         ScriptOutcome outcome = runner.run(tempDir.resolve("no-such-script.sh").toString());
 
         // bash 可用时走退出码 127，bash 不可用时走 IO 异常分支，两者都必须是"失败"结果
-        assertFalse(outcome.success());
+        assertFalse(outcome.isSuccess());
     }
 
     @Test
@@ -38,8 +38,8 @@ class ProcessScriptRunnerTest {
 
         ScriptOutcome outcome = runner.run(script.toString());
 
-        assertTrue(outcome.success(), "实际输出: " + outcome.output());
-        assertTrue(outcome.output().contains("deploy-ok"));
+        assertTrue(outcome.isSuccess(), "实际输出: " + outcome.getOutput());
+        assertTrue(outcome.getOutput().contains("deploy-ok"));
     }
 
     @Test
@@ -48,9 +48,9 @@ class ProcessScriptRunnerTest {
 
         ScriptOutcome outcome = runner.run(script.toString());
 
-        assertFalse(outcome.success());
-        assertEquals(3, outcome.exitCode());
-        assertTrue(outcome.output().contains("oops"), "stderr 应被合并捕获: " + outcome.output());
+        assertFalse(outcome.isSuccess());
+        assertEquals(3, outcome.getExitCode());
+        assertTrue(outcome.getOutput().contains("oops"), "stderr 应被合并捕获: " + outcome.getOutput());
     }
 
     /** 写一个 LF 行尾的临时脚本 */

@@ -20,9 +20,9 @@ public class BearerTokenValidator {
     private final byte[] expectedToken;
 
     public BearerTokenValidator(DeployProperties properties) {
-        this.expectedToken = properties.webhookToken() == null
+        this.expectedToken = properties.getWebhookToken() == null
                 ? new byte[0]
-                : properties.webhookToken().getBytes(StandardCharsets.UTF_8);
+                : properties.getWebhookToken().getBytes(StandardCharsets.UTF_8);
     }
 
     /**

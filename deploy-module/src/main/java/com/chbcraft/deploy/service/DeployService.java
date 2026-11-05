@@ -24,6 +24,6 @@ public class DeployService {
      * 执行配置中指定的部署脚本
      */
     public ScriptOutcome deploy() {
-        return scriptRunner.run(properties.scriptPath());
+        return scriptRunner.run(properties.getScriptPath());
     }
 }

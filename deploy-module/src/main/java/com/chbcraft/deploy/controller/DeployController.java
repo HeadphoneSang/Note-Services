@@ -55,17 +55,17 @@ public class DeployController {
         }
 
         // 2. 请求体校验
-        if (!"deploy".equals(request.action())) {
+        if (!"deploy".equals(request.getAction())) {
             return ResponseEntity.badRequest()
-                    .body(Result.error(400, "不支持的 action: " + request.action()));
+                    .body(Result.error(400, "不支持的 action: " + request.getAction()));
         }
 
         // 3. 触发部署脚本
         ScriptOutcome outcome = deployService.deploy();
-        if (!outcome.success()) {
+        if (!outcome.isSuccess()) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Result.error(500, "部署脚本执行失败(exit=" + outcome.exitCode() + "): " + outcome.output()));
+                    .body(Result.error(500, "部署脚本执行失败(exit=" + outcome.getExitCode() + "): " + outcome.getOutput()));
         }
-        return ResponseEntity.ok(Result.success("部署脚本已执行", outcome.output()));
+        return ResponseEntity.ok(Result.success("部署脚本已执行", outcome.getOutput()));
     }
 }

@@ -33,7 +33,7 @@ class DeployServiceTest {
 
         ScriptOutcome outcome = service.deploy();
 
-        assertTrue(outcome.success());
+        assertTrue(outcome.isSuccess());
         assertEquals(1, runner.invokeCount);
         assertEquals("scripts/deploy.sh", runner.invokedPath);
     }
