@@ -25,6 +25,7 @@
         <module>userInfo-module</module>
         <module>dto-module</module>
         <module>auth-module</module>
+        <module>deploy-module</module>
     </modules>
     <groupId>com.chbcraft</groupId>
     <artifactId>noteback</artifactId>
@@ -56,6 +57,12 @@
                 <type>pom</type>
                 <scope>test</scope>
             </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
+                <version>3.5.9</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
     <dependencies>
