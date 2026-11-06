@@ -16,4 +16,8 @@ public class DeployRequest {
 
     /** 动作类型，目前仅支持 deploy */
     private String action;
+
+    private String taskId;
+
+    private String currentAt;
 }

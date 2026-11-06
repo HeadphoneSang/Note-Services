@@ -64,3 +64,23 @@ jobs:
         run: |
           docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest
           docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }}
+  deploy:
+    runs-on: self-hosted
+
+    # 等待所有 matrix 构建任务完成
+    needs: build
+
+    # 只有构建成功才触发部署
+    if: success()
+
+    steps:
+      - name: Trigger Remote Deployment
+        run: |
+          curl -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
+            -d '{
+              "taskId": "${{ github.run_id }}",
+              "action": "deploy",
+              "currentAt": "${{ github.timestamp }}"
+            }'

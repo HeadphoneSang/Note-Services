@@ -1,5 +1,6 @@
 package com.chbcraft.deploy.controller;
 
+import com.chbcraft.deploy.dto.DeployLog;
 import com.chbcraft.deploy.dto.DeployRequest;
 import com.chbcraft.deploy.security.BearerTokenValidator;
 import com.chbcraft.deploy.service.DeployService;
@@ -63,9 +64,12 @@ public class DeployController {
         // 3. 触发部署脚本
         ScriptOutcome outcome = deployService.deploy();
         if (!outcome.isSuccess()) {
+            String msg = "部署脚本执行失败(exit=" + outcome.getExitCode() + "): " + outcome.getOutput();
+            deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), msg.substring(0,Math.min(msg.length(),64)), request.getCurrentAt(),"deploy", "failure"));
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Result.error(500, "部署脚本执行失败(exit=" + outcome.getExitCode() + "): " + outcome.getOutput()));
+                    .body(Result.error(500, msg));
         }
+        deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), outcome.getOutput().substring(0,Math.min(outcome.getOutput().length(), 64)), request.getCurrentAt(),"deploy", "success"));
         return ResponseEntity.ok(Result.success("部署脚本已执行", outcome.getOutput()));
     }
 }

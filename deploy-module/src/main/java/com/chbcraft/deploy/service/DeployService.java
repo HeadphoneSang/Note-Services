@@ -1,6 +1,8 @@
 package com.chbcraft.deploy.service;
 
 import com.chbcraft.deploy.config.DeployProperties;
+import com.chbcraft.deploy.dto.DeployLog;
+import com.chbcraft.deploy.mapper.DeployLogMapper;
 import org.springframework.stereotype.Service;
 
 /**
@@ -15,9 +17,12 @@ public class DeployService {
     private final DeployProperties properties;
     private final ScriptRunner scriptRunner;
 
-    public DeployService(DeployProperties properties, ScriptRunner scriptRunner) {
+    private final DeployLogMapper deployLogMapper;
+
+    public DeployService(DeployProperties properties, ScriptRunner scriptRunner, DeployLogMapper deployLogMapper) {
         this.properties = properties;
         this.scriptRunner = scriptRunner;
+        this.deployLogMapper = deployLogMapper;
     }
 
     /**
@@ -25,5 +30,9 @@ public class DeployService {
      */
     public ScriptOutcome deploy() {
         return scriptRunner.run(properties.getScriptPath());
+    }
+
+    public void recordDeployLog(DeployLog deployLog){
+        deployLogMapper.insert(deployLog);
     }
 }
