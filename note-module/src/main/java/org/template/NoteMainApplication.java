@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 @EnableDiscoveryClient
 @MapperScan("org.template.mapper")
 public class NoteMainApplication {
-    public static void main(String[] args) {
+    public static void main(String[] args)  {
         SpringApplication.run(NoteMainApplication.class, args);
     }
 }

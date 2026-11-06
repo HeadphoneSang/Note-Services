@@ -6,4 +6,5 @@
 set -euo pipefail
 
 echo "[deploy.sh] 占位脚本：未执行任何实际部署动作"
+
 exit 0
