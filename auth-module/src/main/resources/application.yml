@@ -11,6 +11,8 @@ spring:
         namespace: ${spring.profiles.active:dev}
         import-check:
           enabled: false
+        username: nacos
+        password: po008123123
 logging:
   level:
     com.alibaba.cloud.nacos: DEBUG

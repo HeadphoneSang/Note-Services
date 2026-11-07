@@ -10,6 +10,8 @@ spring:
         namespace: ${spring.profiles.active:dev}
         import-check:
           enabled: false
+        username: nacos
+        password: po008123123
   config:
     import:
       - nacos:deploy.properties?group=DEPLOY_GROUP
