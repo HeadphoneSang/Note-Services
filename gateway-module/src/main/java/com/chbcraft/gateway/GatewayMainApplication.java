@@ -8,7 +8,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 @SpringBootApplication
 public class GatewayMainApplication {
     public static void main(String[] args) {
-        System.out.println("-----------------（Starting GatewayMainApplication）---------------");
+        System.out.println("-----------------（竹庄瑞是傻逼）---------------");
         SpringApplication.run(GatewayMainApplication.class,args);
     }
 
