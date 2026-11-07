@@ -1,10 +1,39 @@
-#!/usr/bin/env bash
-# 部署脚本（占位）— 003-deploy-webhook 仅打通链路，具体部署逻辑后续需求补充。
-# 预期最终形态（服务器上 docker-compose.yml 所在目录执行）：
-#   docker compose pull && docker compose up -d
 
-set -euo pipefail
+set -Eeu pipefail
 
-echo "[deploy.sh] 占位脚本：未执行任何实际部署动作"
+# 部署目录
+APP_DIR="/home/ubuntu/services/note-app"
 
-exit 0
+cd "$APP_DIR"
+
+echo "========== 开始部署 =========="
+# 0. 检查环境变量
+if [[ -z "$TCR_USERNAME" || -z "$TCR_PASSWORD" ]]; then
+    echo "错误：TCR账号或密码未配置"
+    exit 1
+fi
+# 1. 登录腾讯云 TCR
+echo "[1/4] Logging in to TCR..."
+
+printf '%s' "$TCR_PASSWORD" | docker login "$TCR_REGISTRY" \
+    -u "$TCR_USERNAME" \
+    --password-stdin
+
+echo "TCR 登录成功"
+# 2. 拉取最新镜像
+echo "[1/4] Pulling images..."
+docker compose pull
+
+# 3. 重建并启动容器
+echo "[2/4] Starting services..."
+docker compose up -d --remove-orphans
+
+# 4. 检查容器状态
+echo "[3/4] Checking containers..."
+docker compose ps
+
+# 5. 清理无用镜像
+echo "[4/4] Cleaning dangling images..."
+docker image prune -f
+
+echo "========== 部署完成 =========="
