@@ -11,7 +11,7 @@ spring:
         import-check:
           enabled: false
         username: nacos
-        password: po008123123
+        password: ${NACOS_PASSWORD}
   config:
     import:
       - nacos:deploy.properties?group=DEPLOY_GROUP

@@ -12,7 +12,7 @@ spring:
         import-check:
           enabled: false
         username: nacos
-        password: po008123123
+        password: ${NACOS_PASSWORD}
 logging:
   level:
     com.alibaba.cloud.nacos: DEBUG
