@@ -1,36 +1,29 @@
 name: Build and Push Docker Images
+
 on:
   push:
     branches:
       - main
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: self-hosted
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        include:
-          - module: note-module
-            image: note-service 
-          - module: auth-module
-            image: auth-service
-          - module: gateway-module
-            image: gateway-service
+
     steps:
-      # 1. 拉取代码
+      # 1. 只拉取一次代码
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. 配置 Java 17
+      # 2. 检查 Java
       - name: Check Java
         run: |
           java -version
-          javac -version
+          mvn -version
 
-      # 3. Maven 构建
+      # 3. 缓存 Maven
       - name: Cache Maven dependencies
         uses: actions/cache@v4
         with:
@@ -46,33 +39,35 @@ jobs:
           registry: ccr.ccs.tencentyun.com
           username: ${{ secrets.TCR_USERNAME }}
           password: ${{ secrets.TCR_PASSWORD }}
-      # 5. Maven 编译打包
-      - name: Maven Build
-        run: |
-          mvn clean package -pl ${{ matrix.module }} -am -DskipTests
-      # 6. 构建 Docker 镜像
-      - name: Build Docker Image
-        run: |
-          docker build \
-            -t ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest \
-            -t ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }} \
-            -f ${{ matrix.module }}/Dockerfile \
-            ${{ matrix.module }}
 
-      # 7. 推送 Docker 镜像
-      - name: Push Docker Image
+      # 5. 构建并推送所有模块
+      - name: Build and Push Images
         run: |
-          docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:latest
-          docker push ccr.ccs.tencentyun.com/project-note/${{ matrix.image }}:${{ github.sha }}
+          modules=("note-module:note-service"
+                   "auth-module:auth-service"
+                   "gateway-module:gateway-service")
+
+          for item in "${modules[@]}"; do
+            module="${item%%:*}"
+            image="${item##*:}"
+
+            echo "Building $module..."
+
+            mvn clean package -pl "$module" -am -DskipTests
+
+            docker build \
+              -t ccr.ccs.tencentyun.com/project-note/$image:latest \
+              -t ccr.ccs.tencentyun.com/project-note/$image:${{ github.sha }} \
+              -f "$module/Dockerfile" \
+              "$module"
+
+            docker push ccr.ccs.tencentyun.com/project-note/$image:latest
+            docker push ccr.ccs.tencentyun.com/project-note/$image:${{ github.sha }}
+          done
+
   deploy:
     runs-on: self-hosted
-
-    # 等待所有 matrix 构建任务完成
     needs: build
-
-    # 只有构建成功才触发部署
-    if: success()
-
     steps:
       - name: Trigger Remote Deployment
         run: |
@@ -82,5 +77,5 @@ jobs:
             -d '{
               "taskId": "${{ github.run_id }}",
               "action": "deploy",
-              "currentAt": "${{ github.timestamp }}"
+              "currentAt": "${{ github.run_started_at }}"
             }'

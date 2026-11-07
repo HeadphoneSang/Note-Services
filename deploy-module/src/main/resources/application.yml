@@ -19,7 +19,7 @@ logging:
     com.alibaba.cloud.nacos: DEBUG
     org.template: INFO
 server:
-  port: 8083
+  port: 25565
 #deploy:
 #  # webhook 鉴权 token，由 GitHub Actions 仓库 secret DEPLOY_WEBHOOK_TOKEN 注入；
 #  # 未配置（空）时拒绝所有请求，防止裸奔
