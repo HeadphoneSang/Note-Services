@@ -12,6 +12,9 @@ spring:
           enabled: false
         username: nacos
         password: ${NACOS_PASSWORD}
+      discovery:
+        username: nacos
+        password: ${NACOS_PASSWORD}
   config:
     import:
       - nacos:deploy.properties?group=DEPLOY_GROUP

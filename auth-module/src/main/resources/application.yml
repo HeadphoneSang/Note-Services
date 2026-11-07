@@ -13,6 +13,9 @@ spring:
           enabled: false
         username: nacos
         password: ${NACOS_PASSWORD}
+      discovery:
+        username: nacos
+        password: ${NACOS_PASSWORD}
 logging:
   level:
     com.alibaba.cloud.nacos: DEBUG
