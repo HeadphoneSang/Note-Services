@@ -73,7 +73,7 @@ jobs:
         run: |
           curl -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
-            -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" \
             -d '{
               "taskId": "${{ github.run_id }}",
               "action": "deploy",
