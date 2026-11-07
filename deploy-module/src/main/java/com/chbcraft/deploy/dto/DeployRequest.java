@@ -22,4 +22,5 @@ public class DeployRequest {
     private String commitAt;
 
     private String commitSha;
+
 }
