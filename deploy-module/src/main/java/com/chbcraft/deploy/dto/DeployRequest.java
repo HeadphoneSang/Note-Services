@@ -19,5 +19,7 @@ public class DeployRequest {
 
     private String taskId;
 
-    private String currentAt;
+    private String commitAt;
+
+    private String commitSha;
 }

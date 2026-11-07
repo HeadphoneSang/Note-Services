@@ -17,7 +17,9 @@ public class DeployLog {
 
     private String content;
 
-    private String currentAt;
+    private String commitAt;
+
+    private String commitSha;
 
     private String action;
 

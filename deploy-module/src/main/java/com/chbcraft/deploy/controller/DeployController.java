@@ -65,11 +65,11 @@ public class DeployController {
         ScriptOutcome outcome = deployService.deploy();
         if (!outcome.isSuccess()) {
             String msg = "部署脚本执行失败(exit=" + outcome.getExitCode() + "): " + outcome.getOutput();
-            deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), msg.substring(0,Math.min(msg.length(),64)), request.getCurrentAt(),"deploy", "failure"));
+            deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), msg.substring(0,Math.min(msg.length(),64)), request.getCommitAt(),request.getCommitSha(),"deploy", "failure"));
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Result.error(500, msg));
         }
-        deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), outcome.getOutput().substring(0,Math.min(outcome.getOutput().length(), 64)), request.getCurrentAt(),"deploy", "success"));
+        deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), outcome.getOutput().substring(0,Math.min(outcome.getOutput().length(), 64)), request.getCommitAt(), request.getCommitSha(),"deploy", "success"));
         return ResponseEntity.ok(Result.success("部署脚本已执行", outcome.getOutput()));
     }
 }

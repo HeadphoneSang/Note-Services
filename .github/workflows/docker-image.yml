@@ -77,5 +77,6 @@ jobs:
             -d '{
               "taskId": "${{ github.run_id }}",
               "action": "deploy",
-              "currentAt": "${{ github.event.head_commit.timestamp }}"
+              "commitAt": "${{ github.event.head_commit.timestamp }}",
+              "commitSha": "${{ github.sha }}"
             }'
