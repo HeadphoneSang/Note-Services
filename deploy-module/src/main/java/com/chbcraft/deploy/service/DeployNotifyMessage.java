@@ -38,11 +38,11 @@ public final class DeployNotifyMessage {
         StringBuilder sb = new StringBuilder();
         sb.append(outcome.isSuccess() ? "🚀 部署成功" : "❌ 部署失败").append('\n');
         sb.append("────────────────\n");
-        sb.append("任务: ").append(orDash(request.getTaskId())).append('\n');
-        sb.append("提交: ").append(shortSha(request.getCommitSha()))
+        sb.append("任务Id: ").append(orDash(request.getTaskId())).append('\n');
+        sb.append("ComSha: ").append(shortSha(request.getCommitSha()))
                 .append(" · ").append(orDash(request.getCommitAt())).append('\n');
-        sb.append("完成: ").append(finishedAt.format(FINISHED_AT_FORMAT)).append('\n');
-        sb.append("耗时: ").append(elapsedMillis / 1000.0).append("s\n");
+        sb.append("完成时间: ").append(finishedAt.format(FINISHED_AT_FORMAT)).append('\n');
+        sb.append("部署耗时: ").append(elapsedMillis / 1000.0).append("s\n");
         sb.append("退出码: ").append(outcome.getExitCode()).append('\n');
         sb.append("────────────────\n");
         sb.append("输出:\n").append(tailOutput(outcome.getOutput()));
