@@ -25,6 +25,11 @@ logging:
     org.template: INFO
 server:
   port: 25565
+# QQ 消息机器人（004：OpenFeign 远程调用）；
+# 生产环境 token 建议下发在 Nacos deploy.properties（DEPLOY_GROUP），本地用环境变量 QQ_BOT_TOKEN 覆盖
+qq-bot:
+  base-url: ${QQ_BOT_BASE_URL:http://47.104.25.40:3000}
+  token: ${QQ_BOT_TOKEN:}
 #deploy:
 #  # webhook 鉴权 token，由 GitHub Actions 仓库 secret DEPLOY_WEBHOOK_TOKEN 注入；
 #  # 未配置（空）时拒绝所有请求，防止裸奔
