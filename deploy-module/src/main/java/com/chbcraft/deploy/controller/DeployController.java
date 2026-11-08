@@ -3,6 +3,7 @@ package com.chbcraft.deploy.controller;
 import com.chbcraft.deploy.dto.DeployLog;
 import com.chbcraft.deploy.dto.DeployRequest;
 import com.chbcraft.deploy.security.BearerTokenValidator;
+import com.chbcraft.deploy.service.DeployNotifyMessage;
 import com.chbcraft.deploy.service.DeployService;
 import com.chbcraft.deploy.service.QqMessageService;
 import com.chbcraft.deploy.service.ScriptOutcome;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
 
 /**
  * 部署 webhook 控制器
@@ -64,17 +67,21 @@ public class DeployController {
                     .body(Result.error(400, "不支持的 action: " + request.getAction()));
         }
 
-        // 3. 触发部署脚本
+        // 3. 触发部署脚本（计时用于通知消息中的耗时展示）
+        long start = System.currentTimeMillis();
         ScriptOutcome outcome = deployService.deploy();
+        long elapsedMillis = System.currentTimeMillis() - start;
+
+        // 4. 发送结构化部署报告（成功/失败都发；发消息失败只记日志，不影响部署结果）
+        qqMessageService.sendToUser(DeployNotifyMessage.build(request, outcome, elapsedMillis, LocalDateTime.now()));
+
         if (!outcome.isSuccess()) {
             String msg = "部署脚本执行失败(exit=" + outcome.getExitCode() + "): " + outcome.getOutput();
             deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), msg.substring(0,Math.min(msg.length(),64)), request.getCommitAt(),request.getCommitSha(),"deploy", "failure"));
-            qqMessageService.sendToUser("部署失败：" + msg);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Result.error(500, msg));
         }
         deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), outcome.getOutput().substring(0,Math.min(outcome.getOutput().length(), 64)), request.getCommitAt(), request.getCommitSha(),"deploy", "success"));
-        qqMessageService.sendToUser("部署成功：" + outcome.getOutput());
         return ResponseEntity.ok(Result.success("部署脚本已执行", outcome.getOutput()));
     }
 }
