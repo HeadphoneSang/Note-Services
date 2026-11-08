@@ -1,6 +1,7 @@
 package com.chbcraft.deploy.service;
 
 import com.chbcraft.deploy.client.QqMessageClient;
+import com.chbcraft.deploy.config.QqBotProperties;
 import com.chbcraft.deploy.dto.QqMessageRequest;
 import com.chbcraft.deploy.dto.QqMessageResponse;
 import feign.FeignException;
@@ -19,8 +20,11 @@ public class QqMessageService {
 
     private final QqMessageClient qqMessageClient;
 
-    public QqMessageService(QqMessageClient qqMessageClient) {
+    private final QqBotProperties properties;
+
+    public QqMessageService(QqMessageClient qqMessageClient, QqBotProperties properties) {
         this.qqMessageClient = qqMessageClient;
+        this.properties = properties;
     }
 
     /**
@@ -42,5 +46,9 @@ public class QqMessageService {
             log.warn("QQ 消息接口调用异常：userId={}，status={}，body={}", userId, e.status(), e.contentUTF8(), e);
             return false;
         }
+    }
+
+    public void sendToUser(String message){
+        sendToUser(properties.getUserId(), message);
     }
 }

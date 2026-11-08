@@ -4,6 +4,7 @@ import com.chbcraft.deploy.dto.DeployLog;
 import com.chbcraft.deploy.dto.DeployRequest;
 import com.chbcraft.deploy.security.BearerTokenValidator;
 import com.chbcraft.deploy.service.DeployService;
+import com.chbcraft.deploy.service.QqMessageService;
 import com.chbcraft.deploy.service.ScriptOutcome;
 import com.chcbcraft.dto.vo.Result;
 import org.springframework.http.HttpHeaders;
@@ -35,10 +36,12 @@ public class DeployController {
 
     private final BearerTokenValidator tokenValidator;
     private final DeployService deployService;
+    private final QqMessageService qqMessageService;
 
-    public DeployController(BearerTokenValidator tokenValidator, DeployService deployService) {
+    public DeployController(BearerTokenValidator tokenValidator, DeployService deployService, QqMessageService qqMessageService) {
         this.tokenValidator = tokenValidator;
         this.deployService = deployService;
+        this.qqMessageService = qqMessageService;
     }
 
     /**
@@ -66,10 +69,12 @@ public class DeployController {
         if (!outcome.isSuccess()) {
             String msg = "部署脚本执行失败(exit=" + outcome.getExitCode() + "): " + outcome.getOutput();
             deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), msg.substring(0,Math.min(msg.length(),64)), request.getCommitAt(),request.getCommitSha(),"deploy", "failure"));
+            qqMessageService.sendToUser("部署失败：" + msg);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Result.error(500, msg));
         }
         deployService.recordDeployLog(new DeployLog(null, request.getTaskId(), outcome.getOutput().substring(0,Math.min(outcome.getOutput().length(), 64)), request.getCommitAt(), request.getCommitSha(),"deploy", "success"));
+        qqMessageService.sendToUser("部署成功：" + outcome.getOutput());
         return ResponseEntity.ok(Result.success("部署脚本已执行", outcome.getOutput()));
     }
 }

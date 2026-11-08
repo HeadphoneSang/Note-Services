@@ -19,4 +19,6 @@ public class QqBotProperties {
 
     /** Bearer 鉴权 token；未配置（空）时请求会被服务端拒绝 */
     private String token;
+
+    private String userId;
 }

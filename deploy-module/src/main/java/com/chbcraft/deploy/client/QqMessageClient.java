@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(
         name = "qq-message",
         url = "${qq-bot.base-url}",
-        configuration = QqFeignTokenConfig.class
+        configuration = QqFeignTokenConfig.class  // 给这个客户端绑定一个配置类，里面可以给这个类增加请求拦截器等等
 )
 public interface QqMessageClient {
 
