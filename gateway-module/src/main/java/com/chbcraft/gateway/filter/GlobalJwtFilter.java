@@ -44,6 +44,7 @@ public class GlobalJwtFilter implements GlobalFilter {
     // 不需要鉴权的接口（均属 auth 服务）
     private static final List<String> WHITE_LIST = List.of(
             "/api/auth/user/login",
+            "/api/auth/user/refresh",
             "/api/auth/user/register",
             "/api/auth/user/send-email-code",
             "/api/auth/user/email-login",

@@ -108,7 +108,10 @@ public class UserController {
         if (token == null || token.trim().isEmpty()) {
             return Result.error("token 不能为空");
         }
-
+        // 校验 token 签名
+        if (!jwtUtil.validateToken(token)) {
+            return Result.unauthorized("无效的认证令牌");
+        }
         // 检查 token 是否已被登出（与网关/登出接口同一 key）
         Boolean isLoggedOut = stringRedisTemplate.opsForSet()
                 .isMember(AuthRedisKey.LOGOUT_TOKEN.build(), token);
@@ -121,10 +124,7 @@ public class UserController {
             return Result.unauthorized("令牌已过期，请重新登录");
         }
 
-        // 校验 token 签名
-        if (!jwtUtil.validateToken(token)) {
-            return Result.unauthorized("无效的认证令牌");
-        }
+
 
         // 解析用户 ID 并查询用户信息
         int userId = jwtUtil.getUserIdFromToken(token);
