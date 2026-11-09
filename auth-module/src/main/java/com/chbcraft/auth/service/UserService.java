@@ -136,8 +136,8 @@ public class UserService {
         }
 
         String account = req.getAccount().trim();
-        String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-        String failKey = AuthRedisKey.LOGIN_FAIL.build(account);
+        String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);  // 账号异常后被锁定的记录key
+        String failKey = AuthRedisKey.LOGIN_FAIL.build(account);  // 记录账户失败登录次数的key
 
         // 2. 校验验证码（优先于账号锁定检查，避免泄露账号状态）
         String redisKey = AuthRedisKey.CAPTCHA.build(req.getCaptchaKey());
