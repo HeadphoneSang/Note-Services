@@ -6,7 +6,7 @@ spring:
     # include:
   cloud:
     nacos:
-      server-addr: 192.144.229.116:8848
+      server-addr: ${NACOS_ADDR}
       config:
         namespace: ${spring.profiles.active:dev}
         import-check:
