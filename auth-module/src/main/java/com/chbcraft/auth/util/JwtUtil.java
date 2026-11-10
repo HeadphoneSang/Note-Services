@@ -29,11 +29,22 @@ public class JwtUtil {
     @Getter
     private final long expiration;
 
+    @Getter
+    private final long accessExpiration;
+
+    @Getter
+    private final long refreshExpiration;
+
     public JwtUtil(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.expiration}") long expiration) {
+            @Value("${jwt.expiration}") long expiration,
+            @Value("${jwt.access.expiration}") long accessExpiration,
+            @Value("${jwt.refresh.expiration}") long refreshExpiration
+    ) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = expiration;
+        this.accessExpiration = accessExpiration;
+        this.refreshExpiration = refreshExpiration;
     }
 
     /**
@@ -41,6 +52,14 @@ public class JwtUtil {
      */
     public long getExpirationTime() {
         return expiration;
+    }
+
+    public long getAccessExpirationTime() {
+        return accessExpiration;
+    }
+
+    public long getRefreshExpirationTime() {
+        return refreshExpiration;
     }
 
     /**
@@ -52,7 +71,7 @@ public class JwtUtil {
      */
     public String generateAccToken(int userId, String account,String sessionId) {
         Date now = new Date();
-        Date expireDate = new Date(now.getTime() + expiration);
+        Date expireDate = new Date(now.getTime() + accessExpiration);
         Map<String,String> claims = new HashMap<>();
         claims.put("sessionId", sessionId);
         claims.put("tokenType", TokenType.ACCESS_TOKEN.getType());
@@ -155,5 +174,7 @@ public class JwtUtil {
     public String getSessionId(String token){
         return getClaims(token).get("sessionId", String.class);
     }
+
+
 
 }

@@ -1,6 +1,7 @@
 package com.chbcraft.auth.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.chbcraft.auth.util.EncodeUtil;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.dto.LoginRequest;
 import com.chcbcraft.dto.dto.RegisterRequest;
@@ -186,11 +187,14 @@ public class UserService {
         // 6. 登录成功 → 清除失败计数
         stringRedisTemplate.delete(failKey);
 
-        // 7. 生成 JWT Tokens
+        // 7. 生成 JWT Tokens & 记录refresh token
         String sessionId = UUID.randomUUID().toString();
         String accessToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
         String refreshToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
-
+        String refTokenKey = AuthRedisKey.REFRESH_TOKEN.build(user.getId(), sessionId);
+        stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
+        // 設置 refresh token 的有效期
+        stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
         // 8. 组装返回数据
         Map<String, Object> data = new HashMap<>();
         data.put("sessionId",sessionId);

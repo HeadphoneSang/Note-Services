@@ -9,20 +9,26 @@ package com.chcbcraft.dto.enums;
  */
 public enum AuthRedisKey {
 
+    /** 刷新 Token，参数 userId, sessionId */
+    REFRESH_TOKEN("auth:token:ref:%s:%s"),
+
+    /** 过期的刷新 Token，参数 userId, sessionId */
+    EXPIRE_REFRESH_TOKEN("auth:token:exp:%s:%s"),
+
     /** 图形验证码，参数 uuid */
-    CAPTCHA      ("note_backbond:captcha:%s"),
+    CAPTCHA      ("auth:captcha:%s"),
 
     /** 邮箱验证码，参数 email */
-    EMAIL_CODE   ("note_backbond:email:code:%s"),
+    EMAIL_CODE   ("auth:email:code:%s"),
 
     /** 登录失败计数，参数 account */
-    LOGIN_FAIL   ("note_backbond:login:fail:%s"),
+    LOGIN_FAIL   ("auth:login:fail:%s"),
 
     /** 账号锁定，参数 account */
-    LOGIN_LOCK   ("note_backbond:login:lock:%s"),
+    LOGIN_LOCK   ("auth:login:lock:%s"),
 
     /** Token 注销黑名单（Set，无参数） */
-    LOGOUT_TOKEN ("note_backbond:logout:token"),
+    LOGOUT_TOKEN ("auth:logout:token"),
     ;
 
     private final String pattern;
