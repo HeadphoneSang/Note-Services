@@ -1,13 +1,19 @@
 package com.chbcraft.auth.util;
 
+import com.chcbcraft.dto.enums.TokenType;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * JWT 工具类 — 生成 & 校验 Token
@@ -20,11 +26,12 @@ public class JwtUtil {
 
     private final SecretKey secretKey;
 
+    @Getter
     private final long expiration;
 
     public JwtUtil(
-            @Value("${jwt.secret:NoteBackbondSecretKey2026!@#$%^&*()VeryLongEnoughHS256}") String secret,
-            @Value("${jwt.expiration:604800000}") long expiration) {
+            @Value("${jwt.secret}") String secret,
+            @Value("${jwt.expiration}") long expiration) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = expiration;
     }
@@ -43,17 +50,47 @@ public class JwtUtil {
      * @param account 用户账号
      * @return JWT token 字符串
      */
-    public String generateToken(int userId, String account) {
+    public String generateAccToken(int userId, String account,String sessionId) {
         Date now = new Date();
         Date expireDate = new Date(now.getTime() + expiration);
-
+        Map<String,String> claims = new HashMap<>();
+        claims.put("sessionId", sessionId);
+        claims.put("tokenType", TokenType.ACCESS_TOKEN.getType());
         return Jwts.builder()
+                .setClaims(claims)
                 .setId(String.valueOf(userId))
                 .setSubject(account)
                 .setIssuedAt(now)
                 .setExpiration(expireDate)
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    /**
+     * 生成的 Token 是一个随机字符串，具有 256 bit 的随机熵。
+     * @return 生成的 Token 是一个随机字符串，具有 256 bit 的随机熵。
+     */
+    public String generateRefreshToken() {
+        byte[] randomBytes = new byte[32];
+
+        SecureRandom secureRandom = new SecureRandom();
+        secureRandom.nextBytes(randomBytes);
+
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(randomBytes);
+    }
+
+    public String generateToken(int userId, String account, String sessionId, TokenType type){
+        String token;
+        if(type==TokenType.ACCESS_TOKEN){
+            token = generateAccToken(userId, account, sessionId);
+        }else if (type==TokenType.REFRESH_TOKEN){
+            token = generateRefreshToken();
+        }else{
+            throw new IllegalArgumentException("Invalid token type");
+        }
+        return token;
     }
 
     /**
@@ -114,4 +151,9 @@ public class JwtUtil {
                 .parseClaimsJws(token)
                 .getBody();
     }
+
+    public String getSessionId(String token){
+        return getClaims(token).get("sessionId", String.class);
+    }
+
 }

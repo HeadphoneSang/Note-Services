@@ -7,16 +7,14 @@ import com.chcbcraft.dto.dto.RegisterRequest;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
 import com.chbcraft.auth.util.JwtUtil;
+import com.chcbcraft.dto.enums.TokenType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -182,12 +180,16 @@ public class UserService {
         // 6. 登录成功 → 清除失败计数
         stringRedisTemplate.delete(failKey);
 
-        // 7. 生成 JWT Token
-        String token = jwtUtil.generateToken(user.getId(), user.getAccount());
+        // 7. 生成 JWT Tokens
+        String sessionId = UUID.randomUUID().toString();
+        String accessToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
+        String refreshToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
 
         // 8. 组装返回数据
         Map<String, Object> data = new HashMap<>();
-        data.put("token", token);
+        data.put("sessionId",sessionId);
+        data.put("accessToken", accessToken);
+        data.put("refreshToken", refreshToken);
         user.setPassword(null);
         data.put("userInfo", user);
         return data;
@@ -348,11 +350,14 @@ public class UserService {
         }
 
         // 5. 生成 JWT Token
-        String token = jwtUtil.generateToken(user.getId(), user.getEmail());
-
+        String sessionId = UUID.randomUUID().toString();
+        String accessToken = jwtUtil.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.ACCESS_TOKEN);
+        String refreshToken = jwtUtil.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.REFRESH_TOKEN);
         // 6. 组装返回数据
         Map<String, Object> data = new HashMap<>();
-        data.put("token", token);
+        data.put("sessionId", sessionId);
+        data.put("accessToken", accessToken);
+        data.put("refreshToken", refreshToken);
         user.setPassword(null);
         data.put("userInfo", user);
         return data;
