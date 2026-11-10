@@ -2,7 +2,7 @@ spring:
   application:
     name: auth
   profiles:
-    active: dev
+    active: ${NACOS_ENV}
     # include:
   cloud:
     nacos:
