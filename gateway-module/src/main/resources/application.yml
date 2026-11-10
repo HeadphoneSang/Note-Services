@@ -37,7 +37,5 @@ spring:
     import:
       - nacos:jwt.properties?group=GATEWAY_GROUP
       - nacos:redis-config.properties?group=DEFAULT_GROUP
-    activate:
-      on-profile: dev
 server:
   port: 8080

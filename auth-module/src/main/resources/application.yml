@@ -28,8 +28,6 @@ spring:
       - nacos:redis-config.properties?group=DEFAULT_GROUP
       - nacos:mail.properties?group=DEFAULT_GROUP
       - nacos:jwt.properties?group=GATEWAY_GROUP
-    activate:
-      on-profile: dev
 ---
 knife4j:
   enable: true
