@@ -107,13 +107,19 @@ public class GlobalJwtFilter implements GlobalFilter {
             String userId = String.valueOf(jwtUtils.getUserIdFromToken(token));
             String account = jwtUtils.getAccountFromToken(token);
 
-            // 4.1 检查用户是否被禁用
+            // 4.1 检查账号是否被锁定
             String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
+            Long ttl = stringRedisTemplate.getExpire(
+                    lockKey, TimeUnit.SECONDS
+            );
 
-            // 3. 检查账号是否被锁定
-            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(lockKey))) {
-                long ttl = stringRedisTemplate.getExpire(lockKey, TimeUnit.MINUTES);
-                throw new IllegalArgumentException("账号已被临时锁定，请 " + ttl + " 分钟后再试");
+            if (ttl != null && ttl != -2) {
+                if(ttl==-1)
+                    throw new IllegalArgumentException("账号已永久锁定");
+                long minutes = (ttl + 59) / 60; // 最小返回一分钟
+                throw new IllegalArgumentException(
+                        "账号已被临时锁定，请 " + minutes + " 分钟后再试"
+                );
             }
 
             // 5. 删除客户端可能伪造的身份请求头
