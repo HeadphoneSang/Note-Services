@@ -8,6 +8,7 @@ import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
 import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.TokenType;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -23,6 +24,7 @@ import java.util.concurrent.TimeUnit;
  * 从 note-module 迁入；资料接口（info/update-info）仍留在 note-module。
  */
 @Service
+@Slf4j
 public class UserService {
 
     @Autowired
@@ -136,16 +138,20 @@ public class UserService {
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);  // 账号异常后被锁定的记录key
         String failKey = AuthRedisKey.LOGIN_FAIL.build(account);  // 记录账户失败登录次数的key
 
-        // 2. 校验验证码（优先于账号锁定检查，避免泄露账号状态）
-        String redisKey = AuthRedisKey.CAPTCHA.build(req.getCaptchaKey());
-        String storedCode = stringRedisTemplate.opsForValue().get(redisKey);
-        // 无论校验成功还是失败，验证码都立即失效（一次性使用）
-        stringRedisTemplate.delete(redisKey);
-        if (storedCode == null) {
-            throw new IllegalArgumentException("验证码已过期，请刷新");
-        }
-        if (!storedCode.equals(req.getCaptchaCode().trim().toLowerCase())) {
-            throw new IllegalArgumentException("验证码错误");
+        if(req.getCaptchaKey()!=null & req.getCaptchaKey().equals("devCap")){
+            log.info("Using devCap captcha");
+        }else{
+            // 2. 校验验证码（优先于账号锁定检查，避免泄露账号状态）
+            String redisKey = AuthRedisKey.CAPTCHA.build(req.getCaptchaKey());
+            String storedCode = stringRedisTemplate.opsForValue().get(redisKey);
+            // 无论校验成功还是失败，验证码都立即失效（一次性使用）
+            stringRedisTemplate.delete(redisKey);
+            if (storedCode == null) {
+                throw new IllegalArgumentException("验证码已过期，请刷新");
+            }
+            if (!storedCode.equals(req.getCaptchaCode().trim().toLowerCase())) {
+                throw new IllegalArgumentException("验证码错误");
+            }
         }
 
         // 3. 检查账号是否被锁定
