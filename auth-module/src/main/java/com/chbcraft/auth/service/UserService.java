@@ -156,7 +156,9 @@ public class UserService {
         );
 
         if (ttl != null && ttl != -2) {
-            long minutes = (ttl + 59) / 60;
+            if(ttl==-1)
+                throw new IllegalArgumentException("账号已永久锁定");
+            long minutes = (ttl + 59) / 60; // 最小返回一分钟
             throw new IllegalArgumentException(
                     "账号已被临时锁定，请 " + minutes + " 分钟后再试"
             );
