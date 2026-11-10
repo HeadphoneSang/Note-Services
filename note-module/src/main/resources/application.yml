@@ -27,8 +27,6 @@ spring:
       - nacos:datasource.properties?group=DEFAULT_GROUP
       - nacos:redis-config.properties?group=DEFAULT_GROUP
       - nacos:minio.properties?group=AUTH_GROUP
-    activate:
-      on-profile: dev
 ---
 knife4j:
   enable: true
