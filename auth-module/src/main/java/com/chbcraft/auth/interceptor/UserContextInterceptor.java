@@ -35,7 +35,6 @@ public class UserContextInterceptor implements HandlerInterceptor {
         if (userIdStr == null || userIdStr.isBlank()) {
             return reject(response);
         }
-
         Integer userId;
         try {
             userId = Integer.valueOf(userIdStr.trim());

@@ -2,7 +2,6 @@ package com.chbcraft.auth.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.chcbcraft.dto.User;
-import com.chcbcraft.dto.dto.EmailLoginRequest;
 import com.chcbcraft.dto.dto.LoginRequest;
 import com.chcbcraft.dto.dto.RegisterRequest;
 import com.chcbcraft.dto.enums.AuthRedisKey;
@@ -152,9 +151,15 @@ public class UserService {
         }
 
         // 3. 检查账号是否被锁定
-        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(lockKey))) {
-            long ttl = stringRedisTemplate.getExpire(lockKey, TimeUnit.MINUTES);
-            throw new IllegalArgumentException("账号已被临时锁定，请 " + ttl + " 分钟后再试");
+        Long ttl = stringRedisTemplate.getExpire(
+                lockKey, TimeUnit.SECONDS
+        );
+
+        if (ttl != null && ttl != -2) {
+            long minutes = (ttl + 59) / 60;
+            throw new IllegalArgumentException(
+                    "账号已被临时锁定，请 " + minutes + " 分钟后再试"
+            );
         }
 
         // 4. 查找用户

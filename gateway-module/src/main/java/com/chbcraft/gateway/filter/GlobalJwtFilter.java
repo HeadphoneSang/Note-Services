@@ -20,6 +20,7 @@ import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 全局 JWT 过滤器
@@ -100,8 +101,20 @@ public class GlobalJwtFilter implements GlobalFilter {
             if (jwtUtils.isTokenExpired(token)) {
                 return writeError(exchange.getResponse(), "令牌已过期，请重新登录");
             }
+            // 检查
+
             // 4. 解析
             String userId = String.valueOf(jwtUtils.getUserIdFromToken(token));
+            String account = jwtUtils.getAccountFromToken(token);
+
+            // 4.1 检查用户是否被禁用
+            String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
+
+            // 3. 检查账号是否被锁定
+            if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(lockKey))) {
+                long ttl = stringRedisTemplate.getExpire(lockKey, TimeUnit.MINUTES);
+                throw new IllegalArgumentException("账号已被临时锁定，请 " + ttl + " 分钟后再试");
+            }
 
             // 5. 删除客户端可能伪造的身份请求头
             ServerHttpRequest newRequest = request.mutate()
@@ -109,7 +122,7 @@ public class GlobalJwtFilter implements GlobalFilter {
                         headers.remove("X-User-Id");
                         headers.set("X-User-Id", userId);
                         headers.remove("X-User-Account");
-                        headers.set("X-User-Account", jwtUtils.getAccountFromToken(token));
+                        headers.set("X-User-Account", account);
                     })
                     .build();
 
