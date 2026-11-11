@@ -249,7 +249,6 @@ public class UserService {
         if (email == null || email.trim().isEmpty()) {
             throw new IllegalArgumentException("邮箱不能为空");
         }
-
         // 2. 检查是否在重发冷却期内
         String codeKey = AuthRedisKey.EMAIL_CODE.build(email);
         String ttlKey = codeKey + ":ttl";
@@ -257,10 +256,8 @@ public class UserService {
             long remaining = stringRedisTemplate.getExpire(ttlKey, TimeUnit.SECONDS);
             throw new IllegalArgumentException("请 " + remaining + " 秒后再重新发送");
         }
-
         // 3. 生成 6 位随机验证码
         String code = String.format("%06d", new Random().nextInt(1000000));
-
         // 4. 存入 Redis，TTL 5 分钟
         stringRedisTemplate.opsForValue().set(codeKey, code, EMAIL_CODE_TTL_MINUTES, TimeUnit.MINUTES);
         // 冷却标记（60 秒）
