@@ -119,40 +119,18 @@ public class UserService {
      */
     public Map<String, Object> login(LoginRequest req) {
         // 1. 参数校验
-        if (req.getAccount() == null || req.getAccount().trim().isEmpty()) {
-            throw new IllegalArgumentException("账号不能为空");
-        }
-        if (req.getPassword() == null || req.getPassword().isEmpty()) {
-            throw new IllegalArgumentException("密码不能为空");
-        }
-        if (req.getCaptchaKey() == null || req.getCaptchaKey().trim().isEmpty()
-                || req.getCaptchaCode() == null || req.getCaptchaCode().trim().isEmpty()) {
-            throw new IllegalArgumentException("验证码不能为空");
-        }
-
+        validRequestParams(req);
         String account = req.getAccount().trim();
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);  // 账号异常后被锁定的记录key
         String failKey = AuthRedisKey.LOGIN_FAIL.build(account);  // 记录账户失败登录次数的key
-
+        // 2. 验证码校验
         if(req.getCaptchaKey()!=null & req.getCaptchaKey().equals("devCap")){
             log.info("Using devCap captcha");
         }else{
             validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         }
         // 3. 检查账号是否被锁定
-        Long ttl = stringRedisTemplate.getExpire(
-                lockKey, TimeUnit.SECONDS
-        );
-
-        if (ttl != null && ttl != -2) {
-            if(ttl==-1)
-                throw new IllegalArgumentException("账号已永久锁定");
-            long minutes = (ttl + 59) / 60; // 最小返回一分钟
-            throw new IllegalArgumentException(
-                    "账号已被临时锁定，请 " + minutes + " 分钟后再试"
-            );
-        }
-
+        validLockTTL(lockKey);
         // 4. 查找用户
         User user = Optional.ofNullable(userMapper.selectOne(
                 Wrappers.<User>lambdaQuery().eq(User::getAccount, account)))
@@ -161,24 +139,18 @@ public class UserService {
                     recordLoginFailure(failKey, lockKey, account);
                     return new IllegalArgumentException("账号或密码错误");
                 });
-
         // 5. 验证密码
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             recordLoginFailure(failKey, lockKey, account);
             throw new IllegalArgumentException("账号或密码错误");
         }
-
         // 6. 登录成功 → 清除失败计数
         stringRedisTemplate.delete(failKey);
-
         // 7. 生成 JWT Tokens & 记录refresh token
-        String sessionId = UUID.randomUUID().toString();
-        String accessToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
-        String refreshToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
-        String refTokenKey = AuthRedisKey.REFRESH_TOKEN.build(user.getId(), sessionId);
-        stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
-        // 設置 refresh token 的有效期
-        stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
+        List<String> tokens = generateTokensAndRecordRefreshToken(user);
+        String sessionId = tokens.get(0);
+        String accessToken = tokens.get(1);
+        String refreshToken = tokens.get(2);
         // 8. 将当前的session_id存到当前的redis中的USER_SESSION_SET中，统计登录的设备数量
         String setKey = AuthRedisKey.USER_SESSION_SET.build(user.getId());
         Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtUtil.getSessionLimit()));
@@ -381,6 +353,44 @@ public class UserService {
         }
         if (!storedCode.equals(captchaCode.trim().toLowerCase())) {
             throw new IllegalArgumentException("验证码错误");
+        }
+    }
+
+    private List<String> generateTokensAndRecordRefreshToken(User user) {
+        String sessionId = UUID.randomUUID().toString();
+        String accessToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
+        String refreshToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
+        String refTokenKey = AuthRedisKey.REFRESH_TOKEN.build(user.getId(), sessionId);
+        stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
+        // 設置 refresh token 的有效期
+        stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
+        return Arrays.asList(sessionId,accessToken, refreshToken);
+    }
+
+    private void validRequestParams(LoginRequest req){
+        if (req.getAccount() == null || req.getAccount().trim().isEmpty()) {
+            throw new IllegalArgumentException("账号不能为空");
+        }
+        if (req.getPassword() == null || req.getPassword().isEmpty()) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
+        if (req.getCaptchaKey() == null || req.getCaptchaKey().trim().isEmpty()
+                || req.getCaptchaCode() == null || req.getCaptchaCode().trim().isEmpty()) {
+            throw new IllegalArgumentException("验证码不能为空");
+        }
+    }
+
+    private void validLockTTL(String lockKey){
+        Long ttl = stringRedisTemplate.getExpire(
+                lockKey, TimeUnit.SECONDS
+        );
+        if (ttl != null && ttl != -2) {
+            if(ttl==-1)
+                throw new IllegalArgumentException("账号已永久锁定");
+            long minutes = (ttl + 59) / 60; // 最小返回一分钟
+            throw new IllegalArgumentException(
+                    "账号已被临时锁定，请 " + minutes + " 分钟后再试"
+            );
         }
     }
 }
