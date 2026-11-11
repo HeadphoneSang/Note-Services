@@ -9,6 +9,9 @@ package com.chcbcraft.dto.enums;
  */
 public enum AuthRedisKey {
 
+    /** 用户会话 Set，参数 userId */
+    USER_SESSION_SET("auth:login:session:%s"),
+
     /** 刷新 Token，参数 userId, sessionId */
     REFRESH_TOKEN("auth:token:ref:%s:%s"),
 

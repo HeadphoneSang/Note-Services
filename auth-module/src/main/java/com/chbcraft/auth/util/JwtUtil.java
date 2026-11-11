@@ -35,16 +35,21 @@ public class JwtUtil {
     @Getter
     private final long refreshExpiration;
 
+    @Getter
+    private final int sessionLimit;
+
     public JwtUtil(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration}") long expiration,
             @Value("${jwt.access.expiration}") long accessExpiration,
-            @Value("${jwt.refresh.expiration}") long refreshExpiration
+            @Value("${jwt.refresh.expiration}") long refreshExpiration,
+            @Value("${jwt.session.limit}") int sessionLimit
     ) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = expiration;
         this.accessExpiration = accessExpiration;
         this.refreshExpiration = refreshExpiration;
+        this.sessionLimit = sessionLimit;
     }
 
     /**

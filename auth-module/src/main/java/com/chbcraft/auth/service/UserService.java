@@ -9,9 +9,12 @@ import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
 import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.TokenType;
+import jakarta.annotation.Resource;
+import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,9 @@ public class UserService {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Resource
+    private RedisScript<Long> checkAndAddScript;
 
     /**
      * BCrypt 密码编码器（自动从 IoC 容器获取，由 PasswordEncoderConfig 提供）
@@ -84,18 +90,7 @@ public class UserService {
                 || req.getCaptchaCode() == null || req.getCaptchaCode().trim().isEmpty()) {
             throw new IllegalArgumentException("验证码不能为空");
         }
-
-        String redisCaptchaKey = AuthRedisKey.CAPTCHA.build(req.getCaptchaKey());
-        String realCaptchaCode = stringRedisTemplate.opsForValue().get(redisCaptchaKey);
-        stringRedisTemplate.delete(redisCaptchaKey);
-
-        if (realCaptchaCode == null) {
-            throw new IllegalArgumentException("验证码已过期，请刷新");
-        }
-        if (!realCaptchaCode.equals(req.getCaptchaCode().trim().toLowerCase())) {
-            throw new IllegalArgumentException("验证码错误");
-        }
-
+        validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         // 2. 检查账号是否已存在
         if (userMapper.selectCount(Wrappers.<User>lambdaQuery().eq(User::getAccount, account)) > 0) {
             throw new IllegalArgumentException("账号已被注册");
@@ -142,19 +137,8 @@ public class UserService {
         if(req.getCaptchaKey()!=null & req.getCaptchaKey().equals("devCap")){
             log.info("Using devCap captcha");
         }else{
-            // 2. 校验验证码（优先于账号锁定检查，避免泄露账号状态）
-            String redisKey = AuthRedisKey.CAPTCHA.build(req.getCaptchaKey());
-            String storedCode = stringRedisTemplate.opsForValue().get(redisKey);
-            // 无论校验成功还是失败，验证码都立即失效（一次性使用）
-            stringRedisTemplate.delete(redisKey);
-            if (storedCode == null) {
-                throw new IllegalArgumentException("验证码已过期，请刷新");
-            }
-            if (!storedCode.equals(req.getCaptchaCode().trim().toLowerCase())) {
-                throw new IllegalArgumentException("验证码错误");
-            }
+            validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         }
-
         // 3. 检查账号是否被锁定
         Long ttl = stringRedisTemplate.getExpire(
                 lockKey, TimeUnit.SECONDS
@@ -195,7 +179,16 @@ public class UserService {
         stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
         // 設置 refresh token 的有效期
         stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
-        // 8. 组装返回数据
+        // 8. 将当前的session_id存到当前的redis中的USER_SESSION_SET中，统计登录的设备数量
+        String setKey = AuthRedisKey.USER_SESSION_SET.build(user.getId());
+        Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtUtil.getSessionLimit()));
+        validateCAA(ans);
+        // 9. 组装返回数据
+        return getStringObjectMap(user, sessionId, accessToken, refreshToken);
+    }
+
+    @NotNull
+    private Map<String, Object> getStringObjectMap(User user, String sessionId, String accessToken, String refreshToken) {
         Map<String, Object> data = new HashMap<>();
         data.put("sessionId",sessionId);
         data.put("accessToken", accessToken);
@@ -364,12 +357,30 @@ public class UserService {
         String accessToken = jwtUtil.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.ACCESS_TOKEN);
         String refreshToken = jwtUtil.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.REFRESH_TOKEN);
         // 6. 组装返回数据
-        Map<String, Object> data = new HashMap<>();
-        data.put("sessionId", sessionId);
-        data.put("accessToken", accessToken);
-        data.put("refreshToken", refreshToken);
-        user.setPassword(null);
-        data.put("userInfo", user);
-        return data;
+        return getStringObjectMap(user, sessionId, accessToken, refreshToken);
+    }
+
+    private void validateCAA(Long result){
+        if(result == 0)
+            return;
+        if(result == 1){
+            throw new IllegalArgumentException("该账号在当前设备已登录，请先登出");
+        }
+        if(result == 2)
+            throw new IllegalArgumentException("登录设备数量超过限制，请先登出一些设备");
+    }
+
+    private void validateCAPTCHA(String captchaKey, String captchaCode) {
+        // 2. 校验验证码（优先于账号锁定检查，避免泄露账号状态）
+        String redisKey = AuthRedisKey.CAPTCHA.build(captchaKey);
+        String storedCode = stringRedisTemplate.opsForValue().get(redisKey);
+        // 无论校验成功还是失败，验证码都立即失效（一次性使用）
+        stringRedisTemplate.delete(redisKey);
+        if (storedCode == null) {
+            throw new IllegalArgumentException("验证码已过期，请刷新");
+        }
+        if (!storedCode.equals(captchaCode.trim().toLowerCase())) {
+            throw new IllegalArgumentException("验证码错误");
+        }
     }
 }
