@@ -16,7 +16,7 @@ local expireTimeStamp = tonumber(ARGV[3])
 local time = redis.call('TIME')
 local currentTime = time[1] * 1000 + math.floor(time[2] / 1000)
 
--- 2. 清理已经过期的设备
+-- 2. 清理已经过期的设备，删除过期时间戳小于等于当前时间的设备
 redis.call('ZREMRANGEBYSCORE', setKey, '-inf', currentTime)
 
 -- 3. 判断当前设备是否已经登录
