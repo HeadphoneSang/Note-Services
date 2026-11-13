@@ -20,7 +20,7 @@ local currentTime = time[1] * 1000 + math.floor(time[2] / 1000)
 redis.call('ZREMRANGEBYSCORE', setKey, '-inf', currentTime)
 
 -- 3. 判断当前设备是否已经登录
-if redis.call('ZSCORE', setKey, sessionId) ~= nil then
+if redis.call('ZSCORE', setKey, sessionId) ~= false then
     return 1
 end
 
