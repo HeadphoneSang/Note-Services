@@ -168,7 +168,8 @@ public class UserService {
         // 6. 设备会话门禁：LUA 脚本原子地完成 sessionId 查重、设备数量限额检查与会话登记，
         String sessionId = UUID.randomUUID().toString();
         String setKey = AuthRedisKey.USER_SESSION_SET.build(user.getId());
-        Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtUtil.getSessionLimit()));
+        long expireTime = System.currentTimeMillis() + jwtUtil.getExpirationTime();
+        Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtUtil.getSessionLimit()), String.valueOf(expireTime));
         validateCAA(ans);
         // 登录验证通过
         // 7.  生成 JWT Tokens & 记录 refresh token；若记录失败则回滚会话登记，避免占用设备名额
