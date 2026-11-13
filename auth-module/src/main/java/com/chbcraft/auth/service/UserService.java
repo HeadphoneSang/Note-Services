@@ -112,10 +112,31 @@ public class UserService {
     // ==================== 登录 ====================
 
     /**
-     * 用户登录（含验证码校验 + 暴力破解防护）
+     * 用户登录（含验证码校验 + 暴力破解防护 + 多设备登录限制）
+     * <p>
+     * 业务流程：
+     * <ol>
+     *     <li>参数校验：检查账号、密码、验证码参数是否为空</li>
+     *     <li>验证码校验：校验图形验证码（captchaKey 为 devCap 时跳过，仅供开发调试）；
+     *         验证码一次性使用，无论成败均立即失效</li>
+     *     <li>账号锁定检查：连续登录失败达到 {@link #MAX_LOGIN_ATTEMPTS} 次后账号被临时锁定
+     *         （{@link #LOCK_DURATION_MINUTES} 分钟），锁定期内直接拒绝登录</li>
+     *     <li>查找用户：账号不存在时同样记录一次失败计数，防止枚举有效账号</li>
+     *     <li>密码校验：BCrypt 比对密码，失败则累加失败计数，达到阈值时锁定账号并清零计数</li>
+     *     <li>登录成功：清除该账号的失败计数</li>
+     *     <li>设备会话门禁：生成随机 sessionId，通过 LUA 脚本原子地完成查重、设备数量限额检查
+     *         与会话登记，避免"检查 + 修改"两步之间的时间窗口出现竞态；
+     *         此步先于登录成功后的任何 Redis 写入，被拒绝时不产生孤儿数据</li>
+     *     <li>生成双 Token：门禁通过后生成 accessToken、refreshToken，
+     *         并将 refreshToken 的 SHA-256 摘要写入 Redis（带过期时间，供后续刷新 Token 时比对）；
+     *         若记录失败则回滚上一步的会话登记</li>
+     *     <li>组装返回：sessionId + accessToken + refreshToken + 用户信息（密码置空）</li>
+     * </ol>
      *
      * @param req 登录请求（account, password, captchaKey, captchaCode）
-     * @return 包含 token 和用户信息的 Map
+     * @return 包含 sessionId、accessToken、refreshToken 和 userInfo 的 Map
+     * @throws IllegalArgumentException 参数为空 / 验证码错误或过期 / 账号被锁定 /
+     *                                  账号或密码错误 / 登录设备数量超过限制
      */
     public Map<String, Object> login(LoginRequest req) {
         // 1. 参数校验
@@ -144,17 +165,24 @@ public class UserService {
             recordLoginFailure(failKey, lockKey, account);
             throw new IllegalArgumentException("账号或密码错误");
         }
-        // 6. 登录成功 → 清除失败计数
-        stringRedisTemplate.delete(failKey);
-        // 7. 生成 JWT Tokens & 记录refresh token
-        List<String> tokens = generateTokensAndRecordRefreshToken(user);
-        String sessionId = tokens.get(0);
-        String accessToken = tokens.get(1);
-        String refreshToken = tokens.get(2);
-        // 8. 将当前的session_id存到当前的redis中的USER_SESSION_SET中，统计登录的设备数量
+        // 6. 设备会话门禁：LUA 脚本原子地完成 sessionId 查重、设备数量限额检查与会话登记，
+        String sessionId = UUID.randomUUID().toString();
         String setKey = AuthRedisKey.USER_SESSION_SET.build(user.getId());
         Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtUtil.getSessionLimit()));
         validateCAA(ans);
+        // 登录验证通过
+        // 7.  生成 JWT Tokens & 记录 refresh token；若记录失败则回滚会话登记，避免占用设备名额
+        List<String> tokens;
+        tokens = generateTokensAndRecordRefreshToken(user, sessionId);
+        String accessToken = tokens.get(0);
+        String refreshToken = tokens.get(1);
+        String refTokenKey = tokens.get(2);
+        // 设置 refresh token 的 SHA-256 摘要
+        stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
+        // 设置 refresh token 的有效期
+        stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
+        // 登录成功 → 清除失败计数
+        stringRedisTemplate.delete(failKey);
         // 9. 组装返回数据
         return getStringObjectMap(user, sessionId, accessToken, refreshToken);
     }
@@ -353,15 +381,11 @@ public class UserService {
         }
     }
 
-    private List<String> generateTokensAndRecordRefreshToken(User user) {
-        String sessionId = UUID.randomUUID().toString();
+    private List<String> generateTokensAndRecordRefreshToken(User user, String sessionId) {
         String accessToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
         String refreshToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
         String refTokenKey = AuthRedisKey.REFRESH_TOKEN.build(user.getId(), sessionId);
-        stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
-        // 設置 refresh token 的有效期
-        stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
-        return Arrays.asList(sessionId,accessToken, refreshToken);
+        return Arrays.asList(accessToken, refreshToken,refTokenKey);
     }
 
     private void validRequestParams(LoginRequest req){
