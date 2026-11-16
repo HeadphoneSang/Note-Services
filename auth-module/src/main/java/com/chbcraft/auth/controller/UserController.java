@@ -102,6 +102,7 @@ public class UserController {
      * GET /user/token-info?token=xxx
      * <p>
      * 适用于客户端持有 token 字符串但想查看所属用户信息的场景
+     * begin at 2026/11/16
      */
     @GetMapping("/token-info")
     public Result<User> getInfoByToken(@RequestParam("token") String token) {
