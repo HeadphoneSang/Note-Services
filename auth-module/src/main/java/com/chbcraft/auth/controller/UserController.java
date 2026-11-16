@@ -105,35 +105,17 @@ public class UserController {
      * begin at 2026/11/16
      */
     @GetMapping("/token-info")
-    public Result<User> getInfoByToken(@RequestParam("token") String token) {
+    public Result<User> getInfoByToken(@RequestParam("token") String accessToken) {
         // 校验 token 是否为空
-        if (token == null || token.trim().isEmpty()) {
+        if (accessToken == null || accessToken.trim().isEmpty()) {
             return Result.error("void_token");
         }
-        // 校验 token 签名
-        if (!jwtUtil.validateToken(token)) {
-            return Result.unauthorized("invalid_token");
+        try{
+            User user = userService.validAccTokenAndExtract(accessToken);
+            return Result.success(user);
+        }catch (IllegalArgumentException authException){
+            return Result.unauthorized(authException.getMessage());
         }
-        // 检查 token 是否已被登出（与网关/登出接口同一 key）
-        Boolean isLoggedOut = stringRedisTemplate.opsForSet()
-                .isMember(AuthRedisKey.LOGOUT_TOKEN.build(), token);
-        if (Boolean.TRUE.equals(isLoggedOut)) {
-            return Result.unauthorized("session_logout_token_revoked");
-        }
-
-        // 检查 token 是否过期
-        if (jwtUtil.isTokenExpired(token)) {
-            return Result.unauthorized("expired_need_refresh");
-        }
-
-        // 解析用户 ID 并查询用户信息
-        int userId = jwtUtil.getUserIdFromToken(token);
-        User user = userService.getUserInfo(userId);
-        if (user == null) {
-            return Result.error("user_not_found");
-        }
-        user.setPassword(null);
-        return Result.success(user);
     }
 
     /**
@@ -183,4 +165,6 @@ public class UserController {
             return Result.error(e.getMessage());
         }
     }
+
+
 }

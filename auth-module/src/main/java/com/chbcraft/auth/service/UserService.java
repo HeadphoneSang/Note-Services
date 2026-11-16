@@ -9,6 +9,7 @@ import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
 import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.TokenType;
+import com.chcbcraft.dto.vo.Result;
 import jakarta.annotation.Resource;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,9 @@ public class UserService {
 
     @Resource
     private RedisScript<Long> checkAndAddScript;
+
+    @Resource
+    private RedisScript<Long> expireAndCheckScript;
 
     /**
      * BCrypt 密码编码器（自动从 IoC 容器获取，由 PasswordEncoderConfig 提供）
@@ -414,5 +418,45 @@ public class UserService {
                     "账号已被临时锁定，请 " + minutes + " 分钟后再试"
             );
         }
+    }
+
+    /**
+     * 代实现的接口签名
+     * @param accessToken accToken 短期访问token
+     * @return 返回对应的token的用户信息或者直接抛出异常
+     */
+    public User validAccTokenAndExtract(String accessToken){
+        // 1. 校验 acc token 签名是否合法
+        if (!jwtUtil.validateToken(accessToken)) {
+            throw new IllegalArgumentException("invalid_token");
+        }
+        // 2. 检查 token 是否过期
+        if (jwtUtil.isTokenExpired(accessToken)) {
+            throw new IllegalArgumentException("expired_need_refresh");
+        }
+        // 3. 提取用户信息
+        int userId = jwtUtil.getUserIdFromToken(accessToken);
+        String account = jwtUtil.getAccountFromToken(accessToken);
+        // 4. 检查用户是否被限制
+        String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
+        String lockValue = stringRedisTemplate.opsForValue().get(lockKey);
+        if (lockValue != null) {
+            throw new IllegalArgumentException("account_locked");
+        }
+        // 5. 检查 token 是否已被登出或者长对话过期
+        String sessionId = jwtUtil.getSessionId(accessToken);
+        // 5.1 懒过滤，删除zset中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
+        String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
+        Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
+        if (result == null || result == 0) {
+            throw new IllegalArgumentException("token_invalidated");
+        }
+        // 6. 检查通过，返回用户信息
+        User user = getUserInfo(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("user_not_found");
+        }
+        user.setPassword(null);
+        return user;
     }
 }

@@ -19,4 +19,13 @@ public class RedisConfig {
         script.setResultType(Long.class);   // Lua 返回 1/0
         return script;
     }
+
+    @Bean(name = "expireAndCheck")
+    public RedisScript<Long> expireAndCheckScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setScriptSource(new ResourceScriptSource(
+                new ClassPathResource("lua/expireAndCheck.lua")));
+        script.setResultType(Long.class);   // Lua 返回 1/0
+        return script;
+    }
 }
