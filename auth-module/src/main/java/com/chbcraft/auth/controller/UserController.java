@@ -61,6 +61,7 @@ public class UserController {
     /**
      * 用户登录
      * POST /user/login
+     * release at 2026/11/16
      */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody LoginRequest req) {
