@@ -1,6 +1,7 @@
 package com.chbcraft.authCommon.services;
 
 
+import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chcbcraft.dto.enums.TokenType;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -126,23 +127,19 @@ public class JwtService {
      * </p>
      *
      * @param token 待校验的 JWT Token
-     * @return true 表示 Token 合法且未过期
      * @throws IllegalArgumentException Token 为空、格式错误或其他非法情况
      * @throws IllegalArgumentException Token 已过期（expired_need_refresh），需要通过 RefreshToken 刷新
      * @throws IllegalArgumentException Token 格式不合法（invalid_token）
      */
-    public boolean validateToken(String token) {
+    public void validateToken(String token) {
         try {
             getClaims(token);
-            return true;
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("token error");
+            throw new UnauthorizedException("token error");
         } catch (ExpiredJwtException e) {
-            throw new IllegalArgumentException("expired_need_refresh");
+            throw new UnauthorizedException("expired_need_refresh");
         } catch (MalformedJwtException e) {
-            throw new IllegalArgumentException("invalid_token");
-        } catch (Exception e) {
-            return false;
+            throw new UnauthorizedException("invalid_token");
         }
     }
 
@@ -154,11 +151,11 @@ public class JwtService {
             Claims claims = getClaims(token);
             return Integer.parseInt(claims.getId());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("token error");
+            throw new UnauthorizedException("token error");
         }catch (ExpiredJwtException e){
-            throw new IllegalArgumentException("expired_need_refresh");
+            throw new UnauthorizedException("expired_need_refresh");
         }catch (MalformedJwtException e){
-            throw new IllegalArgumentException("invalid_token");
+            throw new UnauthorizedException("invalid_token");
         }
     }
 

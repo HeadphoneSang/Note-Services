@@ -71,6 +71,7 @@ public class UserController {
         } catch (IllegalArgumentException e) {
             return Result.error(e.getMessage());
         }
+        // unauthorized 异常由全局异常处理器处理，这里无需显式返回
     }
 
     /**
@@ -110,12 +111,9 @@ public class UserController {
         if (accessToken == null || accessToken.trim().isEmpty()) {
             return Result.error("void_token");
         }
-        try{
-            User user = userService.validAccTokenAndExtract(accessToken);
-            return Result.success(user);
-        }catch (IllegalArgumentException authException){
-            return Result.unauthorized(authException.getMessage());
-        }
+        User user = userService.validAccTokenAndExtract(accessToken);
+        return Result.success(user);
+        // unauthorized 异常由全局异常处理器处理，这里无需显式返回
     }
 
     /**

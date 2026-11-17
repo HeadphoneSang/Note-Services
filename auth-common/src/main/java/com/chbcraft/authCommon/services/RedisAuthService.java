@@ -1,5 +1,6 @@
 package com.chbcraft.authCommon.services;
 
+import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -56,9 +57,9 @@ public class RedisAuthService {
         );
         if (ttl != null && ttl != -2) {
             if(ttl==-1)
-                throw new IllegalArgumentException("account_locked:-1");
+                throw new UnauthorizedException("account_locked:-1");
             long minutes = (ttl + 59) / 60; // 最小返回一分钟
-            throw new IllegalArgumentException(
+            throw new UnauthorizedException(
                     "account_locked:" + minutes
             );
         }
@@ -92,7 +93,7 @@ public class RedisAuthService {
     public void validLogoutOrExpire(String sessionKey, String sessionId){
         Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
         if (result == null || result == 0) {
-            throw new IllegalArgumentException("token_invalidated");
+            throw new UnauthorizedException("token_invalidated");
         }
     }
 

@@ -1,11 +1,13 @@
 package com.chbcraft.auth.config;
 
+import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chcbcraft.dto.vo.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
@@ -57,5 +59,15 @@ public class GlobalExceptionHandler {
     public Result<Void> handleException(Exception e) {
         log.error("未预期的异常", e);
         return Result.serverError();
+    }
+
+    /**
+     * 处理未授权异常
+     */
+    @ExceptionHandler(UnauthorizedException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public Result<?> handleUnauthorizedException(UnauthorizedException e) {
+        System.out.println(e.getMessage());
+        return Result.unauthorized(e.getMessage());
     }
 }

@@ -1,6 +1,7 @@
 package com.chbcraft.gateway.filter;
 
 
+import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chbcraft.authCommon.services.JwtService;
 import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.enums.AuthRedisKey;
@@ -87,7 +88,7 @@ public class GlobalJwtFilter implements GlobalFilter {
 
         if (authHeader == null ||
                 !authHeader.startsWith("Bearer ")) {
-            return writeResult(exchange, Result.unauthorized("未携带认证令牌"));
+            return writeResult(exchange, Result.unauthorized("unauthorized"));
         }
         // 提取 Token
         String token = jwtService.extractToken(authHeader);
@@ -95,7 +96,7 @@ public class GlobalJwtFilter implements GlobalFilter {
             // 验证
             try {
                 validateAccessToken(token);
-            } catch (IllegalArgumentException e) {
+            } catch (UnauthorizedException e) {
                 return writeResult(exchange, Result.unauthorized(e.getMessage()));
             }
             // 删除客户端可能伪造的身份请求头
