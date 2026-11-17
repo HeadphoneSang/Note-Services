@@ -114,7 +114,6 @@ public class GlobalJwtFilter implements GlobalFilter {
                     .build();
 
             return chain.filter(newExchange);
-
         }
         catch (Exception e) {
             // Redis 不可用、解析异常等兜底
