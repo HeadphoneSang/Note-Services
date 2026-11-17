@@ -16,6 +16,7 @@ spring:
       discovery:
         username: nacos
         password: ${NACOS_PASSWORD}
+        namespace: ${spring.profiles.active:dev}
 logging:
   level:
     com.alibaba.cloud.nacos: DEBUG

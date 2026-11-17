@@ -1,5 +1,6 @@
 package com.chbcraft.auth.controller;
 
+import com.chbcraft.authCommon.services.JwtService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.context.UserContext;
 import com.chcbcraft.dto.dto.EmailLoginRequest;
@@ -9,7 +10,6 @@ import com.chcbcraft.dto.dto.SendEmailCodeRequest;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.chbcraft.auth.service.UserService;
-import com.chbcraft.auth.util.JwtUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +32,7 @@ public class UserController {
     private UserService userService;
 
     @Autowired
-    private JwtUtil jwtUtil;
+    private JwtService jwtService;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -92,7 +92,7 @@ public class UserController {
         String logoutKey = AuthRedisKey.LOGOUT_TOKEN.build();
         // 将 token 加入登出黑名单 Set，并设置 TTL = token 最大过期时间
         stringRedisTemplate.opsForSet().add(logoutKey, token);
-        stringRedisTemplate.expire(logoutKey, jwtUtil.getExpirationTime(), TimeUnit.MILLISECONDS);
+        stringRedisTemplate.expire(logoutKey, jwtService.getExpirationTime(), TimeUnit.MILLISECONDS);
 
         return Result.success("退出登录成功");
     }

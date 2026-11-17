@@ -26,6 +26,7 @@
         <module>dto-module</module>
         <module>auth-module</module>
         <module>deploy-module</module>
+        <module>auth-common</module>
     </modules>
     <groupId>com.chbcraft</groupId>
     <artifactId>noteback</artifactId>

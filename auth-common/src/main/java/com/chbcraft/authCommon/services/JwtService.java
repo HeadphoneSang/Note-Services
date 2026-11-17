@@ -1,12 +1,11 @@
-package com.chbcraft.auth.util;
+package com.chbcraft.authCommon.services;
+
 
 import com.chcbcraft.dto.enums.TokenType;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -14,15 +13,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-
-/**
- * JWT 工具类 — 生成 & 校验 Token
- * <p>
- * 密钥与过期时间从配置读取（Nacos jwt.properties / GATEWAY_GROUP，与网关共享），
- * 默认值兼容拆分前 note-module 硬编码的密钥，保证存量 token 继续有效。
- */
-@Component
-public class JwtUtil {
+public class JwtService {
 
     private final SecretKey secretKey;
 
@@ -44,7 +35,7 @@ public class JwtUtil {
     @Getter
     private final int lockDuration;
 
-    public JwtUtil(
+    public JwtService(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration}") long expiration,
             @Value("${jwt.access.expiration}") long accessExpiration,

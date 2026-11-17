@@ -1,7 +1,8 @@
 package com.chbcraft.gateway.filter;
 
-import com.chbcraft.auth.util.JwtUtil;
-import com.chbcraft.auth.util.RedisAuthUtil;
+
+import com.chbcraft.authCommon.services.JwtService;
+import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -36,19 +37,19 @@ public class GlobalJwtFilter implements GlobalFilter {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalJwtFilter.class);
 
-    private final JwtUtil jwtUtil;
+    private final JwtService jwtService;
 
     private final ObjectMapper objectMapper;
 
-    private final RedisAuthUtil redisAuthUtil;
+    private final RedisAuthService redisAuthService;
 
     @Autowired
-    public GlobalJwtFilter(JwtUtil jwtUtil,
+    public GlobalJwtFilter(JwtService jwtService,
                            ObjectMapper objectMapper,
-                           RedisAuthUtil redisAuthUtil) {
-        this.jwtUtil = jwtUtil;
+                           RedisAuthService redisAuthService) {
+        this.jwtService = jwtService;
         this.objectMapper = objectMapper;
-        this.redisAuthUtil = redisAuthUtil;
+        this.redisAuthService = redisAuthService;
     }
 
     // 不需要鉴权的接口（均属 auth 服务）
@@ -89,7 +90,7 @@ public class GlobalJwtFilter implements GlobalFilter {
             return writeResult(exchange, Result.unauthorized("未携带认证令牌"));
         }
         // 提取 Token
-        String token = jwtUtil.extractToken(authHeader);
+        String token = jwtService.extractToken(authHeader);
         try {
             // 验证
             try {
@@ -98,8 +99,8 @@ public class GlobalJwtFilter implements GlobalFilter {
                 return writeResult(exchange, Result.unauthorized(e.getMessage()));
             }
             // 删除客户端可能伪造的身份请求头
-            String userId = String.valueOf(jwtUtil.getUserIdFromToken(token));
-            String account = jwtUtil.getAccountFromToken(token);
+            String userId = String.valueOf(jwtService.getUserIdFromToken(token));
+            String account = jwtService.getAccountFromToken(token);
             ServerHttpRequest newRequest = request.mutate()
                     .headers(headers -> {
                         headers.remove("X-User-Id");
@@ -124,18 +125,18 @@ public class GlobalJwtFilter implements GlobalFilter {
 
     public void validateAccessToken(String accessToken) {
         // 校验 Token 签名与有效期
-        jwtUtil.validateToken(accessToken);
+        jwtService.validateToken(accessToken);
         // 解析
-        String userId = String.valueOf(jwtUtil.getUserIdFromToken(accessToken));
-        String account = jwtUtil.getAccountFromToken(accessToken);
+        String userId = String.valueOf(jwtService.getUserIdFromToken(accessToken));
+        String account = jwtService.getAccountFromToken(accessToken);
         // 检查用户是否已经被登出
-        String sessionId = jwtUtil.getSessionId(accessToken);
+        String sessionId = jwtService.getSessionId(accessToken);
         // 懒过滤，删除SET中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
         String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
-        redisAuthUtil.validLogoutOrExpire(sessionKey, sessionId);
+        redisAuthService.validLogoutOrExpire(sessionKey, sessionId);
         // 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-        redisAuthUtil.validLockTTL(lockKey);
+        redisAuthService.validLockTTL(lockKey);
     }
 
     /**

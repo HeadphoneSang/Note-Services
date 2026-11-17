@@ -1,6 +1,6 @@
 package com.chbcraft.gateway.config;
 
-import com.chbcraft.auth.util.RedisAuthUtil;
+import com.chbcraft.authCommon.services.RedisAuthService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,8 +32,8 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisAuthUtil redisAuthUtil(StringRedisTemplate stringRedisTemplate, @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
-        return new RedisAuthUtil(stringRedisTemplate, expireAndCheckScript);
+    public RedisAuthService redisAuthUtil(StringRedisTemplate stringRedisTemplate, @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
+        return new RedisAuthService(stringRedisTemplate, expireAndCheckScript);
     }
 
 }

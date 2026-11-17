@@ -1,4 +1,4 @@
-package com.chbcraft.auth.util;
+package com.chbcraft.authCommon.services;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,14 +19,13 @@ import java.util.concurrent.TimeUnit;
  * 网关层会将其原样作为 Result 文案下发客户端（前端按前缀解析），
  * 因此调用方与维护者都不得随意改写消息格式。
  */
-@Component
-public class RedisAuthUtil {
+public class RedisAuthService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
     private final RedisScript<Long> expireAndCheckScript;
 
-    public RedisAuthUtil(StringRedisTemplate stringRedisTemplate,
+    public RedisAuthService(StringRedisTemplate stringRedisTemplate,
                          @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.expireAndCheckScript = expireAndCheckScript;

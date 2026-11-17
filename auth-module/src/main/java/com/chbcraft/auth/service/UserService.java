@@ -2,13 +2,13 @@ package com.chbcraft.auth.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.chbcraft.auth.util.EncodeUtil;
-import com.chbcraft.auth.util.RedisAuthUtil;
+import com.chbcraft.authCommon.services.JwtService;
+import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.dto.LoginRequest;
 import com.chcbcraft.dto.dto.RegisterRequest;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
-import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.TokenType;
 import jakarta.annotation.Resource;
 import jakarta.validation.constraints.NotNull;
@@ -36,7 +36,7 @@ public class UserService {
     private UserMapper userMapper;
 
     @Autowired
-    private JwtUtil jwtUtil;
+    private JwtService jwtService;
 
     @Resource(name="checkAndAdd")
     private RedisScript<Long> checkAndAddScript;
@@ -57,7 +57,7 @@ public class UserService {
     private EmailService emailService;
 
     @Autowired
-    private RedisAuthUtil redisAuthUtil;
+    private RedisAuthService redisAuthService;
 
     // ================ 登录安全配置 ================
 
@@ -158,7 +158,7 @@ public class UserService {
             validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         }
         // 3. 检查账号是否被锁定
-        redisAuthUtil.validLockTTL(lockKey);
+        redisAuthService.validLockTTL(lockKey);
         // 4. 查找用户
         User user = Optional.ofNullable(userMapper.selectOne(
                 Wrappers.<User>lambdaQuery().eq(User::getAccount, account)))
@@ -175,8 +175,8 @@ public class UserService {
         // 6. 设备会话门禁：LUA 脚本原子地完成 sessionId 查重、设备数量限额检查与会话登记，
         String sessionId = UUID.randomUUID().toString();
         String setKey = AuthRedisKey.USER_SESSION_SET.build(user.getId());
-        long expireTime = System.currentTimeMillis() + jwtUtil.getExpirationTime();
-        Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtUtil.getSessionLimit()), String.valueOf(expireTime));
+        long expireTime = System.currentTimeMillis() + jwtService.getExpirationTime();
+        Long ans = stringRedisTemplate.execute(checkAndAddScript, Collections.singletonList(setKey), sessionId, String.valueOf(jwtService.getSessionLimit()), String.valueOf(expireTime));
         validateCAA(ans);
         // 登录验证通过
         // 7.  生成 JWT Tokens & 记录 refresh token；若记录失败则回滚会话登记，避免占用设备名额
@@ -188,7 +188,7 @@ public class UserService {
         // 设置 refresh token 的 SHA-256 摘要
         stringRedisTemplate.opsForValue().set(refTokenKey, EncodeUtil.sha256(refreshToken));
         // 设置 refresh token 的有效期
-        stringRedisTemplate.expire(refTokenKey, jwtUtil.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
+        stringRedisTemplate.expire(refTokenKey, jwtService.getRefreshExpirationTime(), TimeUnit.MILLISECONDS);
         // 登录成功 → 清除失败计数
         stringRedisTemplate.delete(failKey);
         // 9. 组装返回数据
@@ -214,11 +214,11 @@ public class UserService {
         // 第一次失败时设置 TTL，防止遗忘的计数永远占用内存
         if (attempts != null && attempts == 1) {
             // 失败计数的 TTL 略大于锁定时间 × 最大次数，确保锁定期内计数不会提前消失
-            stringRedisTemplate.expire(failKey, jwtUtil.getLockDuration() * 2L, TimeUnit.MINUTES);
+            stringRedisTemplate.expire(failKey, jwtService.getLockDuration() * 2L, TimeUnit.MINUTES);
         }
-        if (attempts != null && attempts >= jwtUtil.getMaxLoginAttempts()) {
+        if (attempts != null && attempts >= jwtService.getMaxLoginAttempts()) {
             // 达到上限 → 锁定账号
-            stringRedisTemplate.opsForValue().set(lockKey, "1", jwtUtil.getLockDuration(), TimeUnit.MINUTES);
+            stringRedisTemplate.opsForValue().set(lockKey, "1", jwtService.getLockDuration(), TimeUnit.MINUTES);
             // 清除失败计数（解锁后重新计数）
             stringRedisTemplate.delete(failKey);
         }
@@ -359,8 +359,8 @@ public class UserService {
 
         // 5. 生成 JWT Token
         String sessionId = UUID.randomUUID().toString();
-        String accessToken = jwtUtil.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.ACCESS_TOKEN);
-        String refreshToken = jwtUtil.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.REFRESH_TOKEN);
+        String accessToken = jwtService.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.ACCESS_TOKEN);
+        String refreshToken = jwtService.generateToken(user.getId(), user.getEmail(), sessionId, TokenType.REFRESH_TOKEN);
         // 6. 组装返回数据
         return getStringObjectMap(user, sessionId, accessToken, refreshToken);
     }
@@ -390,8 +390,8 @@ public class UserService {
     }
 
     private List<String> generateTokensAndRecordRefreshToken(User user, String sessionId) {
-        String accessToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
-        String refreshToken = jwtUtil.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
+        String accessToken = jwtService.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.ACCESS_TOKEN);
+        String refreshToken = jwtService.generateToken(user.getId(), user.getAccount(),sessionId, TokenType.REFRESH_TOKEN);
         String refTokenKey = AuthRedisKey.REFRESH_TOKEN.build(user.getId(), sessionId);
         return Arrays.asList(accessToken, refreshToken,refTokenKey);
     }
@@ -417,18 +417,18 @@ public class UserService {
     public User validAccTokenAndExtract(String accessToken){
         assert accessToken != null;
         // 0. 预处理token
-        accessToken = jwtUtil.extractToken(accessToken);
+        accessToken = jwtService.extractToken(accessToken);
         // 1. 验证 token 是否合法, 2. 是否过期 3. 然后提取用户信息
-        int userId = jwtUtil.getUserIdFromToken(accessToken);
-        String account = jwtUtil.getAccountFromToken(accessToken);
+        int userId = jwtService.getUserIdFromToken(accessToken);
+        String account = jwtService.getAccountFromToken(accessToken);
         // 4. 检查用户是否被限制
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-        redisAuthUtil.validLockTTL(lockKey);
+        redisAuthService.validLockTTL(lockKey);
         // 5. 检查 token 是否已被登出或者长对话过期
-        String sessionId = jwtUtil.getSessionId(accessToken);
+        String sessionId = jwtService.getSessionId(accessToken);
         // 5.1 懒过滤，删除zset中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
         String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
-        redisAuthUtil.validLogoutOrExpire(sessionKey, sessionId);
+        redisAuthService.validLogoutOrExpire(sessionKey, sessionId);
         // 6. 检查通过，返回用户信息
         User user = getUserInfo(userId);
         if (user == null) {
