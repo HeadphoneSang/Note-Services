@@ -128,7 +128,17 @@ public class JwtUtil {
     }
 
     /**
-     * 校验 token 是否有效（格式 + 签名 + 过期）
+     * 校验 JWT Token 的有效性。
+     * <p>
+     * 通过解析 Token 获取 Claims，在解析过程中自动校验 Token 的格式、
+     * 签名合法性以及是否过期。
+     * </p>
+     *
+     * @param token 待校验的 JWT Token
+     * @return true 表示 Token 合法且未过期
+     * @throws IllegalArgumentException Token 为空、格式错误或其他非法情况
+     * @throws IllegalArgumentException Token 已过期（expired_need_refresh），需要通过 RefreshToken 刷新
+     * @throws IllegalArgumentException Token 格式不合法（invalid_token）
      */
     public boolean validateToken(String token) {
         try {
@@ -136,9 +146,9 @@ public class JwtUtil {
             return true;
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("token error");
-        }catch (ExpiredJwtException e){
+        } catch (ExpiredJwtException e) {
             throw new IllegalArgumentException("expired_need_refresh");
-        }catch (MalformedJwtException e){
+        } catch (MalformedJwtException e) {
             throw new IllegalArgumentException("invalid_token");
         }
     }
