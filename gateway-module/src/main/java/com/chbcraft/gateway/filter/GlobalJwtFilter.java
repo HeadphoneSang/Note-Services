@@ -6,17 +6,13 @@ import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -25,10 +21,7 @@ import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 全局 JWT 过滤器
@@ -45,31 +38,16 @@ public class GlobalJwtFilter implements GlobalFilter {
 
     private final JwtUtil jwtUtil;
 
-    private final StringRedisTemplate stringRedisTemplate;
-
     private final ObjectMapper objectMapper;
 
     private final RedisAuthUtil redisAuthUtil;
-    private final RedisScript<Long> checkAndAddScript;
-    private final RedisScript<Long> expireAndCheckScript;
-    /** Redis 中存储已注销 token 的 Set 的 key（与 auth 服务 logout 接口同一口径） */
-    private static final String LOGOUT_TOKEN_SET_KEY = AuthRedisKey.LOGOUT_TOKEN.build();
-
-    /** auth-module JwtUtil 抛出的过期标识消息，据此区分「已过期」与「无效」两种文案 */
-    private static final String MSG_EXPIRED_NEED_REFRESH = "expired_need_refresh";
 
     @Autowired
     public GlobalJwtFilter(JwtUtil jwtUtil,
-                           StringRedisTemplate stringRedisTemplate,
                            ObjectMapper objectMapper,
-                           @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript,
-                           @Qualifier("checkAndAdd") RedisScript<Long> checkAndAddScript,
                            RedisAuthUtil redisAuthUtil) {
         this.jwtUtil = jwtUtil;
-        this.stringRedisTemplate = stringRedisTemplate;
         this.objectMapper = objectMapper;
-        this.expireAndCheckScript = expireAndCheckScript;
-        this.checkAndAddScript = checkAndAddScript;
         this.redisAuthUtil = redisAuthUtil;
     }
 
@@ -112,38 +90,16 @@ public class GlobalJwtFilter implements GlobalFilter {
         }
         // 提取 Token
         String token = jwtUtil.extractToken(authHeader);
-
         try {
-            // 校验 Token 签名与有效期
-            boolean valid;
+            // 验证
             try {
-                valid = jwtUtil.validateToken(token);
+                validateAccessToken(token);
             } catch (IllegalArgumentException e) {
                 return writeResult(exchange, Result.unauthorized(e.getMessage()));
             }
-            if (!valid) {
-                return writeResult(exchange, Result.unauthorized("unknown error"));
-            }
-            // 解析
+            // 删除客户端可能伪造的身份请求头
             String userId = String.valueOf(jwtUtil.getUserIdFromToken(token));
             String account = jwtUtil.getAccountFromToken(token);
-            // 检查用户是否已经被登出
-            String sessionId = jwtUtil.getSessionId(token);
-            // 懒过滤，删除zset中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
-            String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
-            Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
-            if (result == null || result == 0) {
-                throw new IllegalArgumentException("token_invalidated");
-            }
-            // 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
-            String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-            try{
-                redisAuthUtil.validLockTTL(lockKey);
-            }catch (IllegalArgumentException e){
-                return writeResult(exchange, Result.unauthorized(e.getMessage()));
-            }
-
-            // 5. 删除客户端可能伪造的身份请求头
             ServerHttpRequest newRequest = request.mutate()
                     .headers(headers -> {
                         headers.remove("X-User-Id");
@@ -152,15 +108,15 @@ public class GlobalJwtFilter implements GlobalFilter {
                         headers.set("X-User-Account", account);
                     })
                     .build();
-
-            // 6. 将修改后的请求传递给下游服务
+            // 将修改后的请求传递给下游服务
             ServerWebExchange newExchange = exchange.mutate()
                     .request(newRequest)
                     .build();
 
             return chain.filter(newExchange);
 
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             // Redis 不可用、解析异常等兜底
             log.warn("JWT 鉴权异常: {}", e.getMessage());
             return writeResult(exchange, Result.unauthorized("认证失败，请重新登录"));
@@ -168,7 +124,19 @@ public class GlobalJwtFilter implements GlobalFilter {
     }
 
     public void validateAccessToken(String accessToken) {
-
+        // 校验 Token 签名与有效期
+        jwtUtil.validateToken(accessToken);
+        // 解析
+        String userId = String.valueOf(jwtUtil.getUserIdFromToken(accessToken));
+        String account = jwtUtil.getAccountFromToken(accessToken);
+        // 检查用户是否已经被登出
+        String sessionId = jwtUtil.getSessionId(accessToken);
+        // 懒过滤，删除SET中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
+        String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
+        redisAuthUtil.validLogoutOrExpire(sessionKey, sessionId);
+        // 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
+        String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
+        redisAuthUtil.validLockTTL(lockKey);
     }
 
     /**

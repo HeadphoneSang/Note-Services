@@ -1,8 +1,11 @@
 package com.chbcraft.auth.util;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -10,8 +13,12 @@ public class RedisAuthUtil {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    public RedisAuthUtil(StringRedisTemplate stringRedisTemplate) {
+    private final RedisScript<Long> expireAndCheckScript;
+
+    public RedisAuthUtil(StringRedisTemplate stringRedisTemplate,
+                         @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.expireAndCheckScript = expireAndCheckScript;
     }
 
     public void validLockTTL(String lockKey){
@@ -25,6 +32,13 @@ public class RedisAuthUtil {
             throw new IllegalArgumentException(
                     "account_locked:" + minutes
             );
+        }
+    }
+
+    public void validLogoutOrExpire(String sessionKey, String sessionId){
+        Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
+        if (result == null || result == 0) {
+            throw new IllegalArgumentException("token_invalidated");
         }
     }
 

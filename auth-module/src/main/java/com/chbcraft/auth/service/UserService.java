@@ -428,10 +428,7 @@ public class UserService {
         String sessionId = jwtUtil.getSessionId(accessToken);
         // 5.1 懒过滤，删除zset中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
         String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
-        Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
-        if (result == null || result == 0) {
-            throw new IllegalArgumentException("token_invalidated");
-        }
+        redisAuthUtil.validLogoutOrExpire(sessionKey, sessionId);
         // 6. 检查通过，返回用户信息
         User user = getUserInfo(userId);
         if (user == null) {
