@@ -150,6 +150,8 @@ public class JwtUtil {
             throw new IllegalArgumentException("expired_need_refresh");
         } catch (MalformedJwtException e) {
             throw new IllegalArgumentException("invalid_token");
+        } catch (Exception e) {
+            return false;
         }
     }
 

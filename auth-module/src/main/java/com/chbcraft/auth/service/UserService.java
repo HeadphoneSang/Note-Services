@@ -2,6 +2,7 @@ package com.chbcraft.auth.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.chbcraft.auth.util.EncodeUtil;
+import com.chbcraft.auth.util.RedisAuthUtil;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.dto.LoginRequest;
 import com.chcbcraft.dto.dto.RegisterRequest;
@@ -9,7 +10,6 @@ import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
 import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.TokenType;
-import com.chcbcraft.dto.vo.Result;
 import jakarta.annotation.Resource;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +55,9 @@ public class UserService {
 
     @Autowired
     private EmailService emailService;
+
+    @Autowired
+    private RedisAuthUtil redisAuthUtil;
 
     // ================ 登录安全配置 ================
 
@@ -155,7 +158,7 @@ public class UserService {
             validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         }
         // 3. 检查账号是否被锁定
-        validLockTTL(lockKey);
+        redisAuthUtil.validLockTTL(lockKey);
         // 4. 查找用户
         User user = Optional.ofNullable(userMapper.selectOne(
                 Wrappers.<User>lambdaQuery().eq(User::getAccount, account)))
@@ -406,20 +409,6 @@ public class UserService {
         }
     }
 
-    private void validLockTTL(String lockKey){
-        Long ttl = stringRedisTemplate.getExpire(
-                lockKey, TimeUnit.SECONDS
-        );
-        if (ttl != null && ttl != -2) {
-            if(ttl==-1)
-                throw new IllegalArgumentException("账号已永久锁定");
-            long minutes = (ttl + 59) / 60; // 最小返回一分钟
-            throw new IllegalArgumentException(
-                    "账号已被临时锁定，请 " + minutes + " 分钟后再试"
-            );
-        }
-    }
-
     /**
      * 代实现的接口签名
      * @param accessToken accToken 短期访问token
@@ -434,10 +423,7 @@ public class UserService {
         String account = jwtUtil.getAccountFromToken(accessToken);
         // 4. 检查用户是否被限制
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-        String lockValue = stringRedisTemplate.opsForValue().get(lockKey);
-        if (lockValue != null) {
-            throw new IllegalArgumentException("account_locked");
-        }
+        redisAuthUtil.validLockTTL(lockKey);
         // 5. 检查 token 是否已被登出或者长对话过期
         String sessionId = jwtUtil.getSessionId(accessToken);
         // 5.1 懒过滤，删除zset中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的

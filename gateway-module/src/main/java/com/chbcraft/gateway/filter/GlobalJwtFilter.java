@@ -1,18 +1,22 @@
 package com.chbcraft.gateway.filter;
 
 import com.chbcraft.auth.util.JwtUtil;
+import com.chbcraft.auth.util.RedisAuthUtil;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -22,6 +26,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +49,9 @@ public class GlobalJwtFilter implements GlobalFilter {
 
     private final ObjectMapper objectMapper;
 
+    private final RedisAuthUtil redisAuthUtil;
+    private final RedisScript<Long> checkAndAddScript;
+    private final RedisScript<Long> expireAndCheckScript;
     /** Redis 中存储已注销 token 的 Set 的 key（与 auth 服务 logout 接口同一口径） */
     private static final String LOGOUT_TOKEN_SET_KEY = AuthRedisKey.LOGOUT_TOKEN.build();
 
@@ -53,10 +61,16 @@ public class GlobalJwtFilter implements GlobalFilter {
     @Autowired
     public GlobalJwtFilter(JwtUtil jwtUtil,
                            StringRedisTemplate stringRedisTemplate,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript,
+                           @Qualifier("checkAndAdd") RedisScript<Long> checkAndAddScript,
+                           RedisAuthUtil redisAuthUtil) {
         this.jwtUtil = jwtUtil;
         this.stringRedisTemplate = stringRedisTemplate;
         this.objectMapper = objectMapper;
+        this.expireAndCheckScript = expireAndCheckScript;
+        this.checkAndAddScript = checkAndAddScript;
+        this.redisAuthUtil = redisAuthUtil;
     }
 
     // 不需要鉴权的接口（均属 auth 服务）
@@ -88,7 +102,7 @@ public class GlobalJwtFilter implements GlobalFilter {
             return chain.filter(exchange);
         }
 
-        // 2. 获取 Authorization 请求头
+        // 获取 Authorization 请求头
         String authHeader = request.getHeaders()
                 .getFirst(HttpHeaders.AUTHORIZATION);
 
@@ -96,55 +110,37 @@ public class GlobalJwtFilter implements GlobalFilter {
                 !authHeader.startsWith("Bearer ")) {
             return writeResult(exchange, Result.unauthorized("未携带认证令牌"));
         }
-
-        // 3. 提取 Token
-        String token = authHeader.substring(7).trim();
-
-        if (token.isEmpty()) {
-            return writeResult(exchange, Result.unauthorized("认证令牌为空"));
-        }
+        // 提取 Token
+        String token = jwtUtil.extractToken(authHeader);
 
         try {
-            // 校验 Token 签名与有效期（JwtUtil 非法/过期时直接抛 IllegalArgumentException 而非返回 false）
+            // 校验 Token 签名与有效期
             boolean valid;
             try {
                 valid = jwtUtil.validateToken(token);
             } catch (IllegalArgumentException e) {
-                return writeResult(exchange, MSG_EXPIRED_NEED_REFRESH.equals(e.getMessage())
-                        ? Result.unauthorized("令牌已过期，请重新登录")
-                        : Result.unauthorized("无效的认证令牌"));
+                return writeResult(exchange, Result.unauthorized(e.getMessage()));
             }
             if (!valid) {
-                return writeResult(exchange, Result.unauthorized("无效的认证令牌"));
+                return writeResult(exchange, Result.unauthorized("unknown error"));
             }
-
-            // 检查 token 是否已被登出（Redis 黑名单）
-            Boolean isLoggedOut = stringRedisTemplate.opsForSet()
-                    .isMember(LOGOUT_TOKEN_SET_KEY, token);
-            if (Boolean.TRUE.equals(isLoggedOut)) {
-                return writeResult(exchange, Result.unauthorized("令牌已失效，请重新登录"));
-            }
-
-            // 检查 Token 是否过期（双保险，正常情况下 validateToken 已拦截）
-            if (jwtUtil.isTokenExpired(token)) {
-                return writeResult(exchange, Result.unauthorized("令牌已过期，请重新登录"));
-            }
-
-            // 4. 解析
+            // 解析
             String userId = String.valueOf(jwtUtil.getUserIdFromToken(token));
             String account = jwtUtil.getAccountFromToken(token);
-
-            // 4.1 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
+            // 检查用户是否已经被登出
+            String sessionId = jwtUtil.getSessionId(token);
+            // 懒过滤，删除zset中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
+            String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
+            Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
+            if (result == null || result == 0) {
+                throw new IllegalArgumentException("token_invalidated");
+            }
+            // 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
             String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-            Long ttl = stringRedisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
-
-            if (ttl != null && ttl != -2) {
-                if (ttl == -1) {
-                    return writeResult(exchange, Result.error(403, "账号已永久锁定"));
-                }
-                long minutes = (ttl + 59) / 60; // 最小返回一分钟
-                return writeResult(exchange,
-                        Result.error(403, "账号已被临时锁定，请 " + minutes + " 分钟后再试"));
+            try{
+                redisAuthUtil.validLockTTL(lockKey);
+            }catch (IllegalArgumentException e){
+                return writeResult(exchange, Result.unauthorized(e.getMessage()));
             }
 
             // 5. 删除客户端可能伪造的身份请求头
@@ -169,6 +165,10 @@ public class GlobalJwtFilter implements GlobalFilter {
             log.warn("JWT 鉴权异常: {}", e.getMessage());
             return writeResult(exchange, Result.unauthorized("认证失败，请重新登录"));
         }
+    }
+
+    public void validateAccessToken(String accessToken) {
+
     }
 
     /**
