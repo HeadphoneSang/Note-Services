@@ -65,7 +65,7 @@ class UserServiceTest {
     void setUp() {
         userService = new UserService();
         inject(userMapper);
-        inject(new JwtUtil(SECRET, 604800000L));
+        inject(new JwtUtil(SECRET, 604800000L, 900000L, 604800000L, 5, 5, 900));
         inject(encoder);
         inject(redis);
         inject(emailService);

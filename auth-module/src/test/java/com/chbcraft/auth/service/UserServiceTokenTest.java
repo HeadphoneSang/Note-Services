@@ -68,7 +68,7 @@ public class UserServiceTokenTest {
     private EmailService emailService;
 
     @Spy
-    private JwtUtil jwtUtil = new JwtUtil(TEST_SECRET, TEST_EXPIRATION);
+    private JwtUtil jwtUtil = new JwtUtil(TEST_SECRET, TEST_EXPIRATION, 900000L, 604800000L, 5, 5, 900);
 
     @Spy
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -92,7 +92,7 @@ public class UserServiceTokenTest {
     public void testGenerateToken() {
         // TODO: test generateToken
         String sessionId = "sessionTest";
-        JwtUtil util = new JwtUtil(TEST_SECRET, TEST_EXPIRATION);
+        JwtUtil util = new JwtUtil(TEST_SECRET, TEST_EXPIRATION, 900000L, 604800000L, 5, 5, 900);
         String accessToken = util.generateToken(1, "test", sessionId, TokenType.ACCESS_TOKEN);
         System.out.println(accessToken);
         System.out.println(util.validateToken(accessToken));
