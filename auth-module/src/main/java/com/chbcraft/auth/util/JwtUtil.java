@@ -134,8 +134,12 @@ public class JwtUtil {
         try {
             getClaims(token);
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("token error");
+        }catch (ExpiredJwtException e){
+            throw new IllegalArgumentException("expired_need_refresh");
+        }catch (MalformedJwtException e){
+            throw new IllegalArgumentException("invalid_token");
         }
     }
 

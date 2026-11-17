@@ -1,7 +1,7 @@
 package com.chbcraft.gateway.filter;
 
+import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.AuthRedisKey;
-import com.chbcraft.gateway.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class GlobalJwtFilter implements GlobalFilter {
 
-    private final JwtUtils jwtUtils;
+    private final JwtUtil jwtUtil;
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -37,8 +37,8 @@ public class GlobalJwtFilter implements GlobalFilter {
     private static final String LOGOUT_TOKEN_SET_KEY = AuthRedisKey.LOGOUT_TOKEN.build();
 
     @Autowired
-    public GlobalJwtFilter(JwtUtils jwtUtils, StringRedisTemplate stringRedisTemplate){
-        this.jwtUtils = jwtUtils;
+    public GlobalJwtFilter(JwtUtil jwtUtil, StringRedisTemplate stringRedisTemplate){
+        this.jwtUtil = jwtUtil;
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
@@ -89,7 +89,7 @@ public class GlobalJwtFilter implements GlobalFilter {
 
         try {
             // 校验 Token 签名是否合法
-            if (!jwtUtils.validateToken(token)) {
+            if (!jwtUtil.validateToken(token)) {
                 return writeError(exchange.getResponse(), "无效的认证令牌");
             }
             // 检查 token 是否已被登出（Redis 黑名单）
@@ -98,14 +98,14 @@ public class GlobalJwtFilter implements GlobalFilter {
                 return isLogout(exchange);
             }
             // 检查 Token 是否过期
-            if (jwtUtils.isTokenExpired(token)) {
+            if (jwtUtil.isTokenExpired(token)) {
                 return writeError(exchange.getResponse(), "令牌已过期，请重新登录");
             }
             // 检查
 
             // 4. 解析
-            String userId = String.valueOf(jwtUtils.getUserIdFromToken(token));
-            String account = jwtUtils.getAccountFromToken(token);
+            String userId = String.valueOf(jwtUtil.getUserIdFromToken(token));
+            String account = jwtUtil.getAccountFromToken(token);
 
             // 4.1 检查账号是否被锁定
             String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
