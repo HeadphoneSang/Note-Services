@@ -2,12 +2,16 @@ package com.chbcraft.gateway.filter;
 
 import com.chbcraft.auth.util.JwtUtil;
 import com.chcbcraft.dto.enums.AuthRedisKey;
+import com.chcbcraft.dto.vo.Result;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -18,28 +22,41 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 全局 JWT 过滤器
+ * <p>
+ * 鉴权失败统一经 {@link #writeResult} 以 {@link Result} JSON 体返回
+ * （与各业务模块 Controller 的响应结构、字段名保持一致），
+ * 不再手拼 JSON 字符串或返回无 body 的裸 401。
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class GlobalJwtFilter implements GlobalFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalJwtFilter.class);
+
     private final JwtUtil jwtUtil;
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    private final ObjectMapper objectMapper;
+
     /** Redis 中存储已注销 token 的 Set 的 key（与 auth 服务 logout 接口同一口径） */
     private static final String LOGOUT_TOKEN_SET_KEY = AuthRedisKey.LOGOUT_TOKEN.build();
 
+    /** auth-module JwtUtil 抛出的过期标识消息，据此区分「已过期」与「无效」两种文案 */
+    private static final String MSG_EXPIRED_NEED_REFRESH = "expired_need_refresh";
+
     @Autowired
-    public GlobalJwtFilter(JwtUtil jwtUtil, StringRedisTemplate stringRedisTemplate){
+    public GlobalJwtFilter(JwtUtil jwtUtil,
+                           StringRedisTemplate stringRedisTemplate,
+                           ObjectMapper objectMapper) {
         this.jwtUtil = jwtUtil;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     // 不需要鉴权的接口（均属 auth 服务）
@@ -77,49 +94,57 @@ public class GlobalJwtFilter implements GlobalFilter {
 
         if (authHeader == null ||
                 !authHeader.startsWith("Bearer ")) {
-            return unauthorized(exchange);
+            return writeResult(exchange, Result.unauthorized("未携带认证令牌"));
         }
 
         // 3. 提取 Token
         String token = authHeader.substring(7).trim();
 
         if (token.isEmpty()) {
-            return unauthorized(exchange);
+            return writeResult(exchange, Result.unauthorized("认证令牌为空"));
         }
 
         try {
-            // 校验 Token 签名是否合法
-            if (!jwtUtil.validateToken(token)) {
-                return writeError(exchange.getResponse(), "无效的认证令牌");
+            // 校验 Token 签名与有效期（JwtUtil 非法/过期时直接抛 IllegalArgumentException 而非返回 false）
+            boolean valid;
+            try {
+                valid = jwtUtil.validateToken(token);
+            } catch (IllegalArgumentException e) {
+                return writeResult(exchange, MSG_EXPIRED_NEED_REFRESH.equals(e.getMessage())
+                        ? Result.unauthorized("令牌已过期，请重新登录")
+                        : Result.unauthorized("无效的认证令牌"));
             }
+            if (!valid) {
+                return writeResult(exchange, Result.unauthorized("无效的认证令牌"));
+            }
+
             // 检查 token 是否已被登出（Redis 黑名单）
-            Boolean isLoggedOut = stringRedisTemplate.opsForSet().isMember(LOGOUT_TOKEN_SET_KEY, token);
+            Boolean isLoggedOut = stringRedisTemplate.opsForSet()
+                    .isMember(LOGOUT_TOKEN_SET_KEY, token);
             if (Boolean.TRUE.equals(isLoggedOut)) {
-                return isLogout(exchange);
+                return writeResult(exchange, Result.unauthorized("令牌已失效，请重新登录"));
             }
-            // 检查 Token 是否过期
+
+            // 检查 Token 是否过期（双保险，正常情况下 validateToken 已拦截）
             if (jwtUtil.isTokenExpired(token)) {
-                return writeError(exchange.getResponse(), "令牌已过期，请重新登录");
+                return writeResult(exchange, Result.unauthorized("令牌已过期，请重新登录"));
             }
-            // 检查
 
             // 4. 解析
             String userId = String.valueOf(jwtUtil.getUserIdFromToken(token));
             String account = jwtUtil.getAccountFromToken(token);
 
-            // 4.1 检查账号是否被锁定
+            // 4.1 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
             String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
-            Long ttl = stringRedisTemplate.getExpire(
-                    lockKey, TimeUnit.SECONDS
-            );
+            Long ttl = stringRedisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
 
             if (ttl != null && ttl != -2) {
-                if(ttl==-1)
-                    throw new IllegalArgumentException("账号已永久锁定");
+                if (ttl == -1) {
+                    return writeResult(exchange, Result.error(403, "账号已永久锁定"));
+                }
                 long minutes = (ttl + 59) / 60; // 最小返回一分钟
-                throw new IllegalArgumentException(
-                        "账号已被临时锁定，请 " + minutes + " 分钟后再试"
-                );
+                return writeResult(exchange,
+                        Result.error(403, "账号已被临时锁定，请 " + minutes + " 分钟后再试"));
             }
 
             // 5. 删除客户端可能伪造的身份请求头
@@ -140,55 +165,46 @@ public class GlobalJwtFilter implements GlobalFilter {
             return chain.filter(newExchange);
 
         } catch (Exception e) {
-            // Token 无效、过期、签名错误等
-            return unauthorized(exchange);
+            // Redis 不可用、解析异常等兜底
+            log.warn("JWT 鉴权异常: {}", e.getMessage());
+            return writeResult(exchange, Result.unauthorized("认证失败，请重新登录"));
         }
     }
+
     /**
-     * 统一返回 401 错误
+     * 统一把 {@link Result} 序列化为 JSON 写入响应（等价于 Controller 返回 Result 的效果）。
+     * <p>
+     * 401/403/404/500 映射为真实 HTTP 状态码（浏览器/前端按状态码感知鉴权失败），
+     * 其余（含 200 与未知 code）返回 HTTP 200、错误码放 body —— 与业务模块 Controller 行为一致。
      */
-    private Mono<Void> writeError(ServerHttpResponse response,
-                                  String message) {
-
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-
-        response.getHeaders().setContentType(
-                MediaType.APPLICATION_JSON
-        );
-
-        String result = "{\"code\":401,\"msg\":\"" + message + "\"}";
-
-        DataBuffer buffer = response.bufferFactory()
-                .wrap(result.getBytes(StandardCharsets.UTF_8));
-
-        return response.writeWith(Mono.just(buffer));
+    private Mono<Void> writeResult(ServerWebExchange exchange, Result<?> result) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(httpStatusOf(result.getCode()));
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(result);
+            return response.writeWith(Mono.just(response.bufferFactory().wrap(bytes)));
+        } catch (JsonProcessingException e) {
+            log.error("Result 序列化失败: {}", result, e);
+            return response.setComplete();
+        }
     }
+
+    private static HttpStatus httpStatusOf(int code) {
+        return switch (code) {
+            case 401 -> HttpStatus.UNAUTHORIZED;
+            case 403 -> HttpStatus.FORBIDDEN;
+            case 404 -> HttpStatus.NOT_FOUND;
+            case 500 -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> HttpStatus.OK;
+        };
+    }
+
     /**
      * 判断是否属于白名单
      */
     private boolean isWhiteList(String path) {
         return WHITE_LIST.contains(path);
-    }
-
-    private Mono<Void> isLogout(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        String result = "{\"code\":401,\"msg\":\"令牌已失效，请重新登录\"}";
-        DataBuffer buffer = exchange.getResponse().bufferFactory()
-                .wrap(result.getBytes(StandardCharsets.UTF_8));
-        // 写入响应并结束请求
-        return exchange.getResponse().writeWith(Mono.just(buffer));
-    }
-
-    /**
-     * 返回 401
-     */
-    private Mono<Void> unauthorized(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(
-                HttpStatus.UNAUTHORIZED
-        );
-
-        return exchange.getResponse().setComplete();
     }
 
 }
