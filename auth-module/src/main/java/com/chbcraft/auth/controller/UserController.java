@@ -104,7 +104,7 @@ public class UserController {
      * 适用于客户端持有 token 字符串但想查看所属用户信息的场景
      * begin at 2026/11/16
      */
-    @GetMapping("/token-info")
+    @GetMapping("/token/valid")
     public Result<User> getInfoByToken(@RequestParam("token") String accessToken) {
         // 校验 token 是否为空
         if (accessToken == null || accessToken.trim().isEmpty()) {
