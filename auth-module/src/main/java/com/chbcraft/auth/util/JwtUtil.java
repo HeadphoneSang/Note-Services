@@ -38,18 +38,28 @@ public class JwtUtil {
     @Getter
     private final int sessionLimit;
 
+    @Getter
+    private final int maxLoginAttempts;
+
+    @Getter
+    private final int lockDuration;
+
     public JwtUtil(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration}") long expiration,
             @Value("${jwt.access.expiration}") long accessExpiration,
             @Value("${jwt.refresh.expiration}") long refreshExpiration,
-            @Value("${jwt.session.limit}") int sessionLimit
+            @Value("${jwt.session.limit}") int sessionLimit,
+            @Value("${jwt.login.failure.times}") int maxLoginAttempts,
+            @Value("${jwt.login.failure.lockDuration}") int lockDuration
     ) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expiration = expiration;
         this.accessExpiration = accessExpiration;
         this.refreshExpiration = refreshExpiration;
         this.sessionLimit = sessionLimit;
+        this.maxLoginAttempts = maxLoginAttempts;
+        this.lockDuration = lockDuration;
     }
 
     /**
@@ -136,8 +146,12 @@ public class JwtUtil {
         try {
             Claims claims = getClaims(token);
             return Integer.parseInt(claims.getId());
-        } catch (JwtException | IllegalArgumentException e) {
-            return 0;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("token error");
+        }catch (ExpiredJwtException e){
+            throw new IllegalArgumentException("expired_need_refresh");
+        }catch (MalformedJwtException e){
+            throw new IllegalArgumentException("invalid_token");
         }
     }
 
@@ -180,6 +194,8 @@ public class JwtUtil {
         return getClaims(token).get("sessionId", String.class);
     }
 
-
+    public String extractToken(String preToken){
+        return preToken.substring(7);
+    }
 
 }

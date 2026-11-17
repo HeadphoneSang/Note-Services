@@ -38,10 +38,10 @@ public class UserService {
     @Autowired
     private JwtUtil jwtUtil;
 
-    @Resource
+    @Resource(name="checkAndAdd")
     private RedisScript<Long> checkAndAddScript;
 
-    @Resource
+    @Resource(name="expireAndCheck")
     private RedisScript<Long> expireAndCheckScript;
 
     /**
@@ -58,11 +58,11 @@ public class UserService {
 
     // ================ 登录安全配置 ================
 
-    /** 连续失败最大次数（超过后锁定账号） */
-    private static final int MAX_LOGIN_ATTEMPTS = 5;
-
-    /** 账号锁定时间（分钟） */
-    private static final int LOCK_DURATION_MINUTES = 15;
+//    /** 连续失败最大次数（超过后锁定账号） */
+//    private static final int MAX_LOGIN_ATTEMPTS = 5;
+//
+//    /** 账号锁定时间（分钟） */
+//    private static final int LOCK_DURATION_MINUTES = 15;
 
     /** 邮箱验证码有效期（分钟） */
     private static final int EMAIL_CODE_TTL_MINUTES = 5;
@@ -123,8 +123,8 @@ public class UserService {
      *     <li>参数校验：检查账号、密码、验证码参数是否为空</li>
      *     <li>验证码校验：校验图形验证码（captchaKey 为 devCap 时跳过，仅供开发调试）；
      *         验证码一次性使用，无论成败均立即失效</li>
-     *     <li>账号锁定检查：连续登录失败达到 {@link #MAX_LOGIN_ATTEMPTS} 次后账号被临时锁定
-     *         （{@link #LOCK_DURATION_MINUTES} 分钟），锁定期内直接拒绝登录</li>
+     *     <li>账号锁定检查：连续登录失败达到  次后账号被临时锁定
+     *         （ 分钟），锁定期内直接拒绝登录</li>
      *     <li>查找用户：账号不存在时同样记录一次失败计数，防止枚举有效账号</li>
      *     <li>密码校验：BCrypt 比对密码，失败则累加失败计数，达到阈值时锁定账号并清零计数</li>
      *     <li>登录成功：清除该账号的失败计数</li>
@@ -211,11 +211,11 @@ public class UserService {
         // 第一次失败时设置 TTL，防止遗忘的计数永远占用内存
         if (attempts != null && attempts == 1) {
             // 失败计数的 TTL 略大于锁定时间 × 最大次数，确保锁定期内计数不会提前消失
-            stringRedisTemplate.expire(failKey, LOCK_DURATION_MINUTES * 2, TimeUnit.MINUTES);
+            stringRedisTemplate.expire(failKey, jwtUtil.getLockDuration() * 2L, TimeUnit.MINUTES);
         }
-        if (attempts != null && attempts >= MAX_LOGIN_ATTEMPTS) {
+        if (attempts != null && attempts >= jwtUtil.getMaxLoginAttempts()) {
             // 达到上限 → 锁定账号
-            stringRedisTemplate.opsForValue().set(lockKey, "1", LOCK_DURATION_MINUTES, TimeUnit.MINUTES);
+            stringRedisTemplate.opsForValue().set(lockKey, "1", jwtUtil.getLockDuration(), TimeUnit.MINUTES);
             // 清除失败计数（解锁后重新计数）
             stringRedisTemplate.delete(failKey);
         }
@@ -426,15 +426,10 @@ public class UserService {
      * @return 返回对应的token的用户信息或者直接抛出异常
      */
     public User validAccTokenAndExtract(String accessToken){
-        // 1. 校验 acc token 签名是否合法
-        if (!jwtUtil.validateToken(accessToken)) {
-            throw new IllegalArgumentException("invalid_token");
-        }
-        // 2. 检查 token 是否过期
-        if (jwtUtil.isTokenExpired(accessToken)) {
-            throw new IllegalArgumentException("expired_need_refresh");
-        }
-        // 3. 提取用户信息
+        assert accessToken != null;
+        // 0. 预处理token
+        accessToken = jwtUtil.extractToken(accessToken);
+        // 1. 验证 token 是否合法, 2. 是否过期 3. 然后提取用户信息
         int userId = jwtUtil.getUserIdFromToken(accessToken);
         String account = jwtUtil.getAccountFromToken(accessToken);
         // 4. 检查用户是否被限制
