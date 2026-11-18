@@ -18,17 +18,19 @@ class UserContextTest {
 
     @Test
     void setThenGetReturnsSameValues() {
-        UserContext.set(42, "alice");
+        UserContext.set(42, "alice", "session-1");
         assertEquals(42, UserContext.getUserId());
         assertEquals("alice", UserContext.getAccount());
+        assertEquals("session-1", UserContext.getSessionId());
     }
 
     @Test
     void clearRemovesAllValues() {
-        UserContext.set(42, "alice");
+        UserContext.set(42, "alice", "session-1");
         UserContext.clear();
         assertNull(UserContext.getUserId());
         assertNull(UserContext.getAccount());
+        assertNull(UserContext.getSessionId());
     }
 
     @Test
