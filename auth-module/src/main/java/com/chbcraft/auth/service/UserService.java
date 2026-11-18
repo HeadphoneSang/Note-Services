@@ -87,18 +87,13 @@ public class UserService {
         // 1. 参数校验
         String account = req.getAccount();
         String password = req.getPassword();
-
-        if (account == null || account.trim().isEmpty()) {
-            throw new IllegalArgumentException("账号不能为空");
+        validRegisterParams(req);
+        // 2. 验证码校验
+        if(req.getCaptchaKey()!=null && req.getCaptchaKey().equals("devCap")){
+            log.info("Using devCap captcha");
+        }else{
+            validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         }
-        if (password == null || password.length() < 6) {
-            throw new IllegalArgumentException("密码至少需要6位");
-        }
-        if (req.getCaptchaKey() == null || req.getCaptchaKey().trim().isEmpty()
-                || req.getCaptchaCode() == null || req.getCaptchaCode().trim().isEmpty()) {
-            throw new IllegalArgumentException("验证码不能为空");
-        }
-        validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
         // 2. 检查账号是否已存在
         if (userMapper.selectCount(Wrappers.<User>lambdaQuery().eq(User::getAccount, account)) > 0) {
             throw new IllegalArgumentException("账号已被注册");
@@ -153,7 +148,7 @@ public class UserService {
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);  // 账号异常后被锁定的记录key
         String failKey = AuthRedisKey.LOGIN_FAIL.build(account);  // 记录账户失败登录次数的key
         // 2. 验证码校验
-        if(req.getCaptchaKey()!=null & req.getCaptchaKey().equals("devCap")){
+        if(req.getCaptchaKey()!=null && req.getCaptchaKey().equals("devCap")){
             log.info("Using devCap captcha");
         }else{
             validateCAPTCHA(req.getCaptchaKey(), req.getCaptchaCode());
@@ -403,6 +398,19 @@ public class UserService {
         }
         if (req.getPassword() == null || req.getPassword().isEmpty()) {
             throw new IllegalArgumentException("密码不能为空");
+        }
+        if (req.getCaptchaKey() == null || req.getCaptchaKey().trim().isEmpty()
+                || req.getCaptchaCode() == null || req.getCaptchaCode().trim().isEmpty()) {
+            throw new IllegalArgumentException("验证码不能为空");
+        }
+    }
+
+    private void validRegisterParams(RegisterRequest req){
+        if (req.getAccount() == null || req.getAccount().trim().isEmpty()) {
+            throw new IllegalArgumentException("账号不能为空");
+        }
+        if (req.getPassword() == null || req.getPassword().length() < 6) {
+            throw new IllegalArgumentException("密码至少需要6位");
         }
         if (req.getCaptchaKey() == null || req.getCaptchaKey().trim().isEmpty()
                 || req.getCaptchaCode() == null || req.getCaptchaCode().trim().isEmpty()) {
