@@ -1,6 +1,7 @@
 package com.chbcraft.auth.controller;
 
 import com.chbcraft.authCommon.services.JwtService;
+import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.context.UserContext;
 import com.chcbcraft.dto.dto.EmailLoginRequest;
@@ -32,7 +33,7 @@ public class UserController {
     private UserService userService;
 
     @Autowired
-    private JwtService jwtService;
+    private RedisAuthService redisAuthService;
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
@@ -85,17 +86,13 @@ public class UserController {
      * 与网关 GlobalJwtFilter 的检查口径一致（修复此前两处 key 不一致导致登出不生效的问题）。
      */
     @PostMapping("/logout")
-    public Result<String> logout(HttpServletRequest request) {
-        // 从请求头提取 token
-        String authHeader = request.getHeader("Authorization");
-        String token = jwtService.extractToken(authHeader);
-
-        String logoutKey = AuthRedisKey.LOGOUT_TOKEN.build();
-        // 将 token 加入登出黑名单 Set，并设置 TTL = token 最大过期时间
-        stringRedisTemplate.opsForSet().add(logoutKey, token);
-        stringRedisTemplate.expire(logoutKey, jwtService.getExpirationTime(), TimeUnit.MILLISECONDS);
-
-        return Result.success("退出登录成功");
+    public Result<String> logout() {
+        String userId = UserContext.getAccount();
+        String sessionSetKey = AuthRedisKey.USER_SESSION_SET.build(userId);
+        String sessionId = UserContext.getSessionId();
+        String refreshToken = AuthRedisKey.REFRESH_TOKEN.build(userId, sessionId);
+        redisAuthService.logout(sessionSetKey,refreshToken,sessionId);
+        return Result.success("退出登录成功：" + userId);
     }
 
     /**

@@ -18,6 +18,7 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         // auth 服务中仅改密码接口需要登录态（其余为白名单接口或自帶 token 校验）
         registry.addInterceptor(userContextInterceptor)
-                .addPathPatterns("/user/password");
+                .addPathPatterns("/user/password")
+                .addPathPatterns("/user/logout");
     }
 }

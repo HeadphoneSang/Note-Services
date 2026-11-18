@@ -97,4 +97,23 @@ public class RedisAuthService {
         }
     }
 
+    /**
+     * 登出：删除会话 ZSET 中的指定成员（sessionId）。
+     * <p>
+     * sessionKey 对应 {@code AuthRedisKey.USER_SESSION_SET}（参数 userId）的 ZSET，
+     * 成员由登录（checkAndAdd 脚本）写入。
+     *
+     * @param sessionKey 用户会话集合 key，由 {@code AuthRedisKey.USER_SESSION_SET.build(userId)} 生成
+     * @param sessionId  当前登录设备的会话 ID（取自 JWT claim 中的 sessionId）
+     */
+    public void logout(String sessionKey, String refreshKey, String sessionId){
+        // 懒删除过期session
+        stringRedisTemplate.opsForZSet().removeRange(sessionKey, 0,-1);
+        // 删除session Id
+        stringRedisTemplate.opsForZSet().remove(sessionKey, sessionId);
+        // 删除对应的refreshKey
+        stringRedisTemplate.delete(refreshKey);
+
+    }
+
 }
