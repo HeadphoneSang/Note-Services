@@ -1,6 +1,5 @@
 package com.chbcraft.auth.controller;
 
-import com.chbcraft.authCommon.services.JwtService;
 import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.context.UserContext;
@@ -12,13 +11,10 @@ import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.chbcraft.auth.service.UserService;
 import jakarta.annotation.PostConstruct;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 用户控制器（auth 域）— 注册 / 登录 / 登出 / 验证码 / 改密码
@@ -84,10 +80,12 @@ public class UserController {
      * <p>
      * key 统一使用 AuthRedisKey.LOGOUT_TOKEN（note_backbond:logout:token），
      * 与网关 GlobalJwtFilter 的检查口径一致（修复此前两处 key 不一致导致登出不生效的问题）。
+     * <p>
+     * release at 2026/11/18
      */
     @PostMapping("/logout")
     public Result<String> logout() {
-        String userId = UserContext.getAccount();
+        String userId = String.valueOf(UserContext.getUserId());
         String sessionSetKey = AuthRedisKey.USER_SESSION_SET.build(userId);
         String sessionId = UserContext.getSessionId();
         String refreshToken = AuthRedisKey.REFRESH_TOKEN.build(userId, sessionId);
@@ -101,6 +99,7 @@ public class UserController {
      * <p>
      * 适用于客户端持有 token 字符串但想查看所属用户信息的场景
      * begin at 2026/11/16
+     * release at 2026/11/17
      */
     @GetMapping("/token/validate")
     public Result<User> getInfoByToken(@RequestParam("token") String accessToken) {
