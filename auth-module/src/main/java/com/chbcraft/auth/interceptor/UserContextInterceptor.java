@@ -16,9 +16,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class UserContextInterceptor implements HandlerInterceptor {
 
-    public static final String USER_ID_HEADER = "X-User-Id";
-    public static final String ACCOUNT_HEADER = "X-User-Account";
-
     private static final String UNAUTHORIZED_BODY =
             "{\"code\":401,\"msg\":\"未登录或认证信息无效\"}";
 
@@ -31,7 +28,7 @@ public class UserContextInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        String userIdStr = request.getHeader(USER_ID_HEADER);
+        String userIdStr = request.getHeader(UserContext.USER_ID_HEADER);
         if (userIdStr == null || userIdStr.isBlank()) {
             return reject(response);
         }
@@ -42,7 +39,7 @@ public class UserContextInterceptor implements HandlerInterceptor {
             return reject(response);
         }
 
-        UserContext.set(userId, request.getHeader(ACCOUNT_HEADER));
+        UserContext.set(userId, request.getHeader(UserContext.ACCOUNT_HEADER), request.getHeader(UserContext.SESSION_ID_HEADER));
         return true;
     }
 

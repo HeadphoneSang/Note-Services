@@ -4,6 +4,7 @@ package com.chbcraft.gateway.filter;
 import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chbcraft.authCommon.services.JwtService;
 import com.chbcraft.authCommon.services.RedisAuthService;
+import com.chcbcraft.dto.context.UserContext;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -102,12 +103,15 @@ public class GlobalJwtFilter implements GlobalFilter {
             // 删除客户端可能伪造的身份请求头
             String userId = String.valueOf(jwtService.getUserIdFromToken(token));
             String account = jwtService.getAccountFromToken(token);
+            String sessionId = jwtService.getSessionId(token);
             ServerHttpRequest newRequest = request.mutate()
                     .headers(headers -> {
-                        headers.remove("X-User-Id");
-                        headers.set("X-User-Id", userId);
-                        headers.remove("X-User-Account");
-                        headers.set("X-User-Account", account);
+                        headers.remove(UserContext.USER_ID_HEADER);
+                        headers.set(UserContext.USER_ID_HEADER, userId);
+                        headers.remove(UserContext.ACCOUNT_HEADER);
+                        headers.set(UserContext.ACCOUNT_HEADER, account);
+                        headers.remove(UserContext.SESSION_ID_HEADER);
+                        headers.set(UserContext.SESSION_ID_HEADER, sessionId);
                     })
                     .build();
             // 将修改后的请求传递给下游服务

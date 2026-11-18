@@ -88,7 +88,7 @@ public class UserController {
     public Result<String> logout(HttpServletRequest request) {
         // 从请求头提取 token
         String authHeader = request.getHeader("Authorization");
-        String token = authHeader.substring(7);
+        String token = jwtService.extractToken(authHeader);
 
         String logoutKey = AuthRedisKey.LOGOUT_TOKEN.build();
         // 将 token 加入登出黑名单 Set，并设置 TTL = token 最大过期时间

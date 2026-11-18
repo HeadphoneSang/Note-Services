@@ -14,12 +14,20 @@ public final class UserContext {
     private static final ThreadLocal<Integer> USER_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> ACCOUNT = new ThreadLocal<>();
 
+    private static final ThreadLocal<String> SESSION_ID = new ThreadLocal<>();
+
+    public static final String USER_ID_HEADER = "X-User-Id";
+    public static final String ACCOUNT_HEADER = "X-User-Account";
+    public static final String SESSION_ID_HEADER = "X-Session-Id";
+
     private UserContext() {
     }
 
-    public static void set(Integer userId, String account) {
+    public static void set(Integer userId, String account, String sessionId) {
         USER_ID.set(userId);
         ACCOUNT.set(account);
+        SESSION_ID.set(sessionId);
+
     }
 
     /** 当前用户 ID，未登录返回 null */
@@ -32,9 +40,13 @@ public final class UserContext {
         return ACCOUNT.get();
     }
 
+    public static String getSessionId() {
+        return SESSION_ID.get();
+    }
     /** 清理上下文（拦截器 afterCompletion 必须无条件调用） */
     public static void clear() {
         USER_ID.remove();
         ACCOUNT.remove();
+        SESSION_ID.remove();
     }
 }
