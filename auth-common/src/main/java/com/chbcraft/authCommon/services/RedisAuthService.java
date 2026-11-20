@@ -1,12 +1,14 @@
 package com.chbcraft.authCommon.services;
 
 import com.chbcraft.authCommon.exceptions.UnauthorizedException;
+import com.chcbcraft.dto.enums.AuthRedisKey;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -26,10 +28,19 @@ public class RedisAuthService {
 
     private final RedisScript<Long> expireAndCheckScript;
 
+    private final RedisScript<Long> swapRefreshScript;
+
     public RedisAuthService(StringRedisTemplate stringRedisTemplate,
-                         @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
+                         @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript,
+                         @Qualifier("swapRefresh") RedisScript<Long> swapRefreshScript) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.expireAndCheckScript = expireAndCheckScript;
+        this.swapRefreshScript = swapRefreshScript;
+    }
+
+    public RedisAuthService(StringRedisTemplate stringRedisTemplate,
+                         @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
+        this(stringRedisTemplate, expireAndCheckScript, null);
     }
 
     /**
@@ -108,12 +119,36 @@ public class RedisAuthService {
      */
     public void logout(String sessionKey, String refreshKey, String sessionId){
         // 懒删除过期session
-        stringRedisTemplate.opsForZSet().removeRange(sessionKey, 0,-1);
+        long currentTimeMillis = System.currentTimeMillis();
+        stringRedisTemplate.opsForZSet().removeRangeByScore(sessionKey, 0, currentTimeMillis);
         // 删除session Id
         stringRedisTemplate.opsForZSet().remove(sessionKey, sessionId);
         // 删除对应的refreshKey
         stringRedisTemplate.delete(refreshKey);
+    }
 
+    /**
+     * 刷新会话：检查旧 refresh token 是否存在，如果存在则将 curKey 重命名为 oldKey，表示该 refresh token 已使用过。
+     * <p>
+     * @param userId 用户ID
+     * @param sessionId 会话ID
+     * @param oldHash 旧refresh token的hash值
+     * @param newHash 新refresh token的hash值
+     */
+    public void compareAndSetNewRefToken(String userId,String sessionId,String oldHash,String newHash){
+        String sessionSetKey = AuthRedisKey.USER_SESSION_SET.build(userId);
+        String usedRefKey = AuthRedisKey.EXPIRE_REFRESH_TOKEN.build(userId, sessionId);
+        String curRefKey = AuthRedisKey.REFRESH_TOKEN.build(userId, sessionId);
+        Long result = stringRedisTemplate.execute(swapRefreshScript, List.of(sessionSetKey, usedRefKey, curRefKey), sessionId, oldHash, newHash);
+        assert result != null; // script result cannot be null
+        if (result == -1) {
+            throw new UnauthorizedException("refresh_token_invalid");
+        }else if (result == 0) {
+            // 销毁当前会话，防止会话劫持，因为前面的CAS替换，所以同时只能有一个对应的session可以进入这个逻辑
+            logout(sessionSetKey, curRefKey, sessionId);
+            throw new UnauthorizedException("refresh_token_replayed");
+        }
+        // refreshToken替换成功，因为cas，所以只有一个session可以走到这里，保证后续操作线程安全
     }
 
 }

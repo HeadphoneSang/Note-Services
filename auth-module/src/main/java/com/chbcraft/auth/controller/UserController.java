@@ -3,10 +3,7 @@ package com.chbcraft.auth.controller;
 import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.context.UserContext;
-import com.chcbcraft.dto.dto.EmailLoginRequest;
-import com.chcbcraft.dto.dto.LoginRequest;
-import com.chcbcraft.dto.dto.RegisterRequest;
-import com.chcbcraft.dto.dto.SendEmailCodeRequest;
+import com.chcbcraft.dto.dto.*;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chcbcraft.dto.vo.Result;
 import com.chbcraft.auth.service.UserService;
@@ -38,6 +35,18 @@ public class UserController {
     public void init() {
         // 初始化 Redis Key（调试用固定验证码，用户要求保留）
         stringRedisTemplate.opsForValue().set(AuthRedisKey.CAPTCHA.build("devCapKey"), "head");
+    }
+
+    @PostMapping("/refresh")
+    public Result<Object> refreshToken(RefreshTokenRequest req) {
+        try {
+            if(req.getRefreshToken() == null || req.getRefreshToken().isEmpty() || req.getSessionId() == null || req.getSessionId().isEmpty())
+                return Result.unauthorized("刷新失败：参数为空");
+            RefreshTokenResponse newTokens = userService.refreshToken(String.valueOf(req.getUserId()), req.getSessionId(), req.getRefreshToken());
+            return Result.success("刷新成功", newTokens);
+        } catch (IllegalArgumentException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     /**

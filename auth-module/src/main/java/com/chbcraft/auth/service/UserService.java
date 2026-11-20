@@ -7,6 +7,7 @@ import com.chbcraft.authCommon.services.JwtService;
 import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.dto.LoginRequest;
+import com.chcbcraft.dto.dto.RefreshTokenResponse;
 import com.chcbcraft.dto.dto.RegisterRequest;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import com.chbcraft.auth.mapper.UserMapper;
@@ -73,6 +74,28 @@ public class UserService {
 
     /** 邮箱验证码重发间隔（秒） — 同一邮箱 60 秒内不允许重复发送 */
     private static final int EMAIL_CODE_RESEND_INTERVAL_SECONDS = 60;
+
+    /**
+     * 刷新访问令牌
+     *
+     * @param refreshToken 刷新令牌
+     * @return 包含新访问令牌和刷新令牌的 Map
+     */
+    public RefreshTokenResponse refreshToken(String userId, String sessionId, String refreshToken) {
+        // 1. 构建存储refreshToken的key
+        String refreshKey = AuthRedisKey.REFRESH_TOKEN.build(userId, sessionId);
+        // 1.1 验证refreshToken是不是已经被使用过，并且过期了
+        if (!redisAuthService.checkReplayAttack(refreshKey, oldSha256)) {
+            throw new UnauthorizedException("刷新令牌已过期或无效");
+        }
+        // 2. 构建用来compare的oldHash
+        String oldSha256 = EncodeUtil.sha256(refreshToken);
+        // 3. 构建新的refreshToken，以及新的newHash
+        String newRefreshToken = jwtService.generateRefreshToken();
+        String newSha256 = EncodeUtil.sha256(newRefreshToken);
+        // 4. Lua实现CAS的比较与替换逻辑，替换掉oldRefreshToken
+        return null;
+    }
 
     // ==================== 注册 ====================
 
