@@ -3,3 +3,5 @@ target/
 
 # 忽略任意位置的 .idea 目录及其子目录
 .idea/
+
+# 忽略所有的test

@@ -62,12 +62,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理未授权异常
+     * 处理未授权异常（err=AuthError 枚举名，前端按 err 分流，文案仅展示）
      */
     @ExceptionHandler(UnauthorizedException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public Result<?> handleUnauthorizedException(UnauthorizedException e) {
-        System.out.println(e.getMessage());
-        return Result.unauthorized(e.getMessage());
+        log.warn("未授权: err={}, msg={}", e.getErr(), e.getMessage());
+        return e.toResult();
     }
 }

@@ -2,6 +2,7 @@ package com.chbcraft.auth.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.chbcraft.auth.util.EncodeUtil;
+import com.chbcraft.authCommon.exceptions.AuthError;
 import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chbcraft.authCommon.services.JwtService;
 import com.chbcraft.authCommon.services.RedisAuthService;
@@ -457,7 +458,7 @@ public class UserService {
         // 6. 检查通过，返回用户信息
         User user = getUserInfo(userId);
         if (user == null) {
-            throw new UnauthorizedException("user_not_found");
+            throw new UnauthorizedException(AuthError.USER_NOT_FOUND);
         }
         user.setPassword(null);
         return user;

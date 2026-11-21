@@ -7,13 +7,19 @@ package com.chcbcraft.dto.vo;
 public class Result<T> {
 
     private int code;       // 状态码：200成功，400参数错误，401未授权，500服务器错误
-    private String message;     // 提示信息
+    private String err;     // 机器可读业务错误码（如 EXPIRED_NEED_REFRESH），前端分流依据；成功时为 null。勿解析 message
+    private String message;     // 提示信息（仅用于直接展示给用户）
     private T data;         // 返回数据
 
     private Result() {}
 
     private Result(int code, String msg, T data) {
+        this(code, null, msg, data);
+    }
+
+    private Result(int code, String err, String msg, T data) {
         this.code = code;
+        this.err = err;
         this.message = msg;
         this.data = data;
     }
@@ -46,8 +52,17 @@ public class Result<T> {
         return new Result<>(code, msg, data);
     }
 
+    /** 无业务错误码的 401（兼容保留），新代码请用 {@link #unauthorized(String, String, Object)} */
     public static <T> Result<T> unauthorized(String msg) {
-        return new Result<>(401, msg, null);
+        return unauthorized(null, msg, null);
+    }
+
+    /**
+     * 401 + 机器可读业务错误码（如 AuthError 枚举名）+ 用户文案 + 结构化数据。
+     * 前端按 err 分流处理，message 仅作展示。
+     */
+    public static <T> Result<T> unauthorized(String err, String msg, T data) {
+        return new Result<>(401, err, msg, data);
     }
 
     public static <T> Result<T> serverError() {
@@ -58,6 +73,9 @@ public class Result<T> {
 
     public int getCode() { return code; }
     public void setCode(int code) { this.code = code; }
+
+    public String getErr() { return err; }
+    public void setErr(String err) { this.err = err; }
 
     public String getMessage() { return message; }
     public void setMessage(String msg) { this.message = msg; }

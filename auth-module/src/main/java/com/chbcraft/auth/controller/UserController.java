@@ -1,5 +1,6 @@
 package com.chbcraft.auth.controller;
 
+import com.chbcraft.authCommon.exceptions.AuthError;
 import com.chbcraft.authCommon.services.RedisAuthService;
 import com.chcbcraft.dto.User;
 import com.chcbcraft.dto.context.UserContext;
@@ -41,7 +42,7 @@ public class UserController {
     public Result<Object> refreshToken(@RequestBody RefreshTokenRequest req) {
         try {
             if(req.getRefreshToken() == null || req.getRefreshToken().isEmpty() || req.getSessionId() == null || req.getSessionId().isEmpty() || req.getAccount() == null || req.getAccount().isEmpty())
-                return Result.unauthorized("刷新失败：参数为空");
+                return Result.unauthorized(AuthError.UNAUTHORIZED.name(), "刷新失败：参数为空", null);
             RefreshTokenResponse newTokens = userService.refreshToken(String.valueOf(req.getUserId()), req.getAccount(),req.getSessionId(), req.getRefreshToken());
             return Result.success("刷新成功", newTokens);
         } catch (IllegalArgumentException e) {
@@ -131,7 +132,7 @@ public class UserController {
     public Result<String> changePassword(@RequestBody Map<String, String> body) {
         Integer userId = UserContext.getUserId();
         if (userId == null) {
-            return Result.unauthorized("未登录");
+            return Result.unauthorized(AuthError.UNAUTHORIZED.name(), "未登录", null);
         }
         try {
             userService.changePassword(userId, body.get("oldPwd"), body.get("newPwd"));

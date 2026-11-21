@@ -1,6 +1,7 @@
 package com.chbcraft.authCommon.services;
 
 
+import com.chbcraft.authCommon.exceptions.AuthError;
 import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chcbcraft.dto.enums.TokenType;
 import io.jsonwebtoken.*;
@@ -25,9 +26,8 @@ import java.util.Map;
  * RefreshToken 为 256 bit 随机不透明字符串（凭 Redis 中记录的 SHA-256 摘要核验）。
  * <p>
  * 约定：校验类方法「通过则静默返回，失败即抛 {@link UnauthorizedException}」，
- * 且异常消息为<b>机器可读的协议串</b>（{@code token error} / {@code expired_need_refresh} /
- * {@code invalid_token}），网关层将其原样作为 Result 文案下发客户端（前端按内容解析），
- * 因此调用方与维护者都不得随意改写消息格式。
+ * 异常携带机器可读错误码 {@link AuthError}（前端按 Result.err 分流）与
+ * 用户可读文案（仅作展示，可随意调整，不作为协议）。
  */
 public class JwtService {
 
@@ -193,34 +193,34 @@ public class JwtService {
      * 校验 AccessToken（JWT）的格式、签名与有效期，通过则静默返回。
      * <p>
      * 经 {@link #getClaims(String)} 解析时完成验签与 exp 检查，JJWT 抛出的异常被统一映射为
-     * {@link UnauthorizedException}（消息为协议串，网关 GlobalJwtFilter 捕获后写入 Result 原样下发客户端）：
+     * {@link UnauthorizedException}（网关 GlobalJwtFilter 捕获后以 Result.err 下发客户端）：
      * <ul>
-     *   <li>{@code token error} —— Token 为空或其他非法情况（IllegalArgumentException）；</li>
-     *   <li>{@code expired_need_refresh} —— 已过期，客户端应改走 RefreshToken 刷新；</li>
-     *   <li>{@code invalid_token} —— 格式不合法（MalformedJwtException）。</li>
+     *   <li>{@link AuthError#TOKEN_ERROR} —— Token 为空或其他非法情况（IllegalArgumentException）；</li>
+     *   <li>{@link AuthError#EXPIRED_NEED_REFRESH} —— 已过期，客户端应改走 RefreshToken 刷新；</li>
+     *   <li>{@link AuthError#INVALID_TOKEN} —— 格式不合法（MalformedJwtException）。</li>
      * </ul>
      * 注意：签名不匹配（SignatureException）不在捕获之列，会以原始 JJWT 异常向上传播。
      *
      * @param token 待校验的 AccessToken
-     * @throws UnauthorizedException Token 非法或已过期时抛出，消息为上述协议串
+     * @throws UnauthorizedException Token 非法或已过期时抛出，err 为上述枚举值
      */
     public void validateToken(String token) {
         try {
             getClaims(token);
         } catch (IllegalArgumentException e) {
-            throw new UnauthorizedException("token error");
+            throw new UnauthorizedException(AuthError.TOKEN_ERROR);
         } catch (ExpiredJwtException e) {
-            throw new UnauthorizedException("expired_need_refresh");
+            throw new UnauthorizedException(AuthError.EXPIRED_NEED_REFRESH);
         } catch (MalformedJwtException e) {
-            throw new UnauthorizedException("invalid_token");
+            throw new UnauthorizedException(AuthError.INVALID_TOKEN);
         }
     }
 
     /**
      * 从 token 提取用户 ID（存于 JWS Id claim 并解析为 int）。
      * <p>
-     * 失败抛 {@link UnauthorizedException}，协议串与 {@link #validateToken(String)} 相同
-     * （{@code token error} / {@code expired_need_refresh} / {@code invalid_token}），
+     * 失败抛 {@link UnauthorizedException}，err 与 {@link #validateToken(String)} 相同
+     * （{@link AuthError#TOKEN_ERROR} / {@link AuthError#EXPIRED_NEED_REFRESH} / {@link AuthError#INVALID_TOKEN}），
      * <b>并非返回 0</b>。主要调用方：网关 GlobalJwtFilter，鉴权通过后写入下游请求头
      * {@code X-User-Id} 传递身份。
      *
@@ -233,11 +233,11 @@ public class JwtService {
             Claims claims = getClaims(token);
             return Integer.parseInt(claims.getId());
         } catch (IllegalArgumentException e) {
-            throw new UnauthorizedException("token error");
+            throw new UnauthorizedException(AuthError.TOKEN_ERROR);
         }catch (ExpiredJwtException e){
-            throw new UnauthorizedException("expired_need_refresh");
+            throw new UnauthorizedException(AuthError.EXPIRED_NEED_REFRESH);
         }catch (MalformedJwtException e){
-            throw new UnauthorizedException("invalid_token");
+            throw new UnauthorizedException(AuthError.INVALID_TOKEN);
         }
     }
 

@@ -45,4 +45,4 @@ mybatis-plus:
       id-type: auto
   type-handlers-package: org.template.handler
 server:
-  port: 8080
+  port: 8082

@@ -1,5 +1,6 @@
 package com.chbcraft.authCommon.services;
 
+import com.chbcraft.authCommon.exceptions.AuthError;
 import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chcbcraft.dto.enums.AuthRedisKey;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -17,10 +19,9 @@ import java.util.concurrent.TimeUnit;
  * auth 服务（UserService 登录与校验流程）与 gateway（GlobalJwtFilter 鉴权）共用：
  * 两模块各自经自己的 RedisConfig 注册同款 bean，保证校验口径完全一致。
  * <p>
- * 约定：方法「通过则静默返回，失败即抛 {@link IllegalArgumentException}」，
- * 且异常消息为<b>机器可读的协议串</b>（如 {@code account_locked:5}、{@code token_invalidated}），
- * 网关层会将其原样作为 Result 文案下发客户端（前端按前缀解析），
- * 因此调用方与维护者都不得随意改写消息格式。
+ * 约定：方法「通过则静默返回，失败即抛 {@link UnauthorizedException}」，
+ * 异常携带机器可读错误码 {@link AuthError}（前端按 Result.err 分流）与
+ * 用户可读文案（可随意调整，不作为协议），结构化参数经 detail 随 Result.data 下发。
  */
 public class RedisAuthService {
 
@@ -50,17 +51,18 @@ public class RedisAuthService {
      * <ul>
      *   <li>TTL 为 {@code null} 或 {@code -2}（key 不存在）—— 未锁定，正常返回；</li>
      *   <li>TTL 为 {@code -1}（key 存在但无过期时间）—— 永久锁定，
-     *       抛出 {@code account_locked:-1}；</li>
+     *       抛出 {@code ACCOUNT_LOCKED}，detail 携带 {@code {"minutes": -1}}；</li>
      *   <li>TTL &gt; 0 —— 临时锁定，剩余分钟数向上取整（不足 1 分钟按 1 分钟计），
-     *       抛出 {@code account_locked:<minutes>}，如 TTL=119s → {@code account_locked:2}。</li>
+     *       抛出 {@code ACCOUNT_LOCKED}，detail 携带 {@code {"minutes": <minutes>}}，
+     *       如 TTL=119s → minutes=2。</li>
      * </ul>
      * <p>
      * 锁定 key 由 auth 登录流程在失败次数达到上限时写入（key 模式见
      * dto-module {@code AuthRedisKey.LOGIN_LOCK}，参数 account），临时锁随 TTL 到期自动解锁。
      *
      * @param lockKey 账号锁定 key，由 {@code AuthRedisKey.LOGIN_LOCK.build(account)} 生成
-     * @throws IllegalArgumentException 账号被锁定时抛出，消息格式
-     *         {@code account_locked:<minutes|-1>}，网关层原样透传给客户端
+     * @throws UnauthorizedException 账号被锁定时抛出，err 为 {@link AuthError#ACCOUNT_LOCKED}，
+     *         detail.minutes 为剩余分钟（-1 表示永久锁定），网关层透传给客户端
      */
     public void validLockTTL(String lockKey){
         Long ttl = stringRedisTemplate.getExpire(
@@ -68,11 +70,11 @@ public class RedisAuthService {
         );
         if (ttl != null && ttl != -2) {
             if(ttl==-1)
-                throw new UnauthorizedException("account_locked:-1");
+                throw new UnauthorizedException(AuthError.ACCOUNT_LOCKED,
+                        "账号已被永久锁定，请联系管理员", Map.of("minutes", -1));
             long minutes = (ttl + 59) / 60; // 最小返回一分钟
-            throw new UnauthorizedException(
-                    "account_locked:" + minutes
-            );
+            throw new UnauthorizedException(AuthError.ACCOUNT_LOCKED,
+                    "账号已被锁定，请 " + minutes + " 分钟后再试", Map.of("minutes", minutes));
         }
     }
 
@@ -98,13 +100,13 @@ public class RedisAuthService {
      *
      * @param sessionKey 用户会话集合 key，由 {@code AuthRedisKey.USER_SESSION_SET.build(userId)} 生成
      * @param sessionId  当前登录设备的会话 ID（取自 JWT claim 中的 sessionId）
-     * @throws IllegalArgumentException 脚本返回 null（执行异常）或 0（已登出/已超时）时抛出，
-     *         消息为 {@code token_invalidated}，网关层原样透传给客户端
+     * @throws UnauthorizedException 脚本返回 null（执行异常）或 0（已登出/已超时）时抛出，
+     *         err 为 {@link AuthError#TOKEN_INVALIDATED}，网关层透传给客户端
      */
     public void validLogoutOrExpire(String sessionKey, String sessionId){
         Long result = stringRedisTemplate.execute(expireAndCheckScript, Collections.singletonList(sessionKey),sessionId);
         if (result == null || result == 0) {
-            throw new UnauthorizedException("token_invalidated");
+            throw new UnauthorizedException(AuthError.TOKEN_INVALIDATED);
         }
     }
 
@@ -142,11 +144,11 @@ public class RedisAuthService {
         Long result = stringRedisTemplate.execute(swapRefreshScript, List.of(sessionSetKey, usedRefKey, curRefKey), sessionId, oldHash, newHash);
         assert result != null; // script result cannot be null
         if (result == -1) {
-            throw new UnauthorizedException("refresh_token_invalid");
+            throw new UnauthorizedException(AuthError.REFRESH_TOKEN_INVALID);
         }else if (result == 0) {
             // 销毁当前会话，防止会话劫持，因为前面的CAS替换，所以同时只能有一个对应的session可以进入这个逻辑
             logout(sessionSetKey, curRefKey, sessionId);
-            throw new UnauthorizedException("refresh_token_replayed");
+            throw new UnauthorizedException(AuthError.REFRESH_TOKEN_REPLAYED);
         }
         // refreshToken替换成功，因为cas，所以只有一个session可以走到这里，保证后续操作线程安全
     }

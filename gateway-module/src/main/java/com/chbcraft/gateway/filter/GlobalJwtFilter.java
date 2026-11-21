@@ -1,6 +1,7 @@
 package com.chbcraft.gateway.filter;
 
 
+import com.chbcraft.authCommon.exceptions.AuthError;
 import com.chbcraft.authCommon.exceptions.UnauthorizedException;
 import com.chbcraft.authCommon.services.JwtService;
 import com.chbcraft.authCommon.services.RedisAuthService;
@@ -89,7 +90,7 @@ public class GlobalJwtFilter implements GlobalFilter {
 
         if (authHeader == null ||
                 !authHeader.startsWith("Bearer ")) {
-            return writeResult(exchange, Result.unauthorized("unauthorized"));
+            return writeResult(exchange, errResult(AuthError.UNAUTHORIZED));
         }
         // 提取 Token
         String token = jwtService.extractToken(authHeader);
@@ -98,7 +99,7 @@ public class GlobalJwtFilter implements GlobalFilter {
             try {
                 validateAccessToken(token);
             } catch (UnauthorizedException e) {
-                return writeResult(exchange, Result.unauthorized(e.getMessage()));
+                return writeResult(exchange, e.toResult());
             }
             // 删除客户端可能伪造的身份请求头
             String userId = String.valueOf(jwtService.getUserIdFromToken(token));
@@ -124,7 +125,7 @@ public class GlobalJwtFilter implements GlobalFilter {
         catch (Exception e) {
             // Redis 不可用、解析异常等兜底
             log.warn("JWT 鉴权异常: {}", e.getMessage());
-            return writeResult(exchange, Result.unauthorized("认证失败，请重新登录"));
+            return writeResult(exchange, errResult(AuthError.AUTH_FAILED));
         }
     }
 
@@ -139,9 +140,14 @@ public class GlobalJwtFilter implements GlobalFilter {
         // 懒过滤，删除SET中的小于等于当前时间戳的成员，然后返回是否有sessionId对应的
         String sessionKey = AuthRedisKey.USER_SESSION_SET.build(userId);
         redisAuthService.validLogoutOrExpire(sessionKey, sessionId);
-        // 检查账号是否被锁定（文案直接返回给客户端，不再经异常中转被吞掉）
+        // 检查账号是否被锁定（err=ACCOUNT_LOCKED + detail.minutes 直接下发客户端，不再经异常中转被吞掉）
         String lockKey = AuthRedisKey.LOGIN_LOCK.build(account);
         redisAuthService.validLockTTL(lockKey);
+    }
+
+    /** 以 {@link AuthError} 组装 401 Result（err=枚举名，message=默认文案） */
+    private static Result<Object> errResult(AuthError err) {
+        return Result.unauthorized(err.name(), err.getDefaultMsg(), null);
     }
 
     /**
