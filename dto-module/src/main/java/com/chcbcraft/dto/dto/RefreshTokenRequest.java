@@ -6,5 +6,6 @@ import lombok.Data;
 public class RefreshTokenRequest {
     private Long userId;
     private String sessionId;
+    private String account;
     private String refreshToken;
 }

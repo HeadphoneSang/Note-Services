@@ -38,11 +38,11 @@ public class UserController {
     }
 
     @PostMapping("/refresh")
-    public Result<Object> refreshToken(RefreshTokenRequest req) {
+    public Result<Object> refreshToken(@RequestBody RefreshTokenRequest req) {
         try {
-            if(req.getRefreshToken() == null || req.getRefreshToken().isEmpty() || req.getSessionId() == null || req.getSessionId().isEmpty())
+            if(req.getRefreshToken() == null || req.getRefreshToken().isEmpty() || req.getSessionId() == null || req.getSessionId().isEmpty() || req.getAccount() == null || req.getAccount().isEmpty())
                 return Result.unauthorized("刷新失败：参数为空");
-            RefreshTokenResponse newTokens = userService.refreshToken(String.valueOf(req.getUserId()), req.getSessionId(), req.getRefreshToken());
+            RefreshTokenResponse newTokens = userService.refreshToken(String.valueOf(req.getUserId()), req.getAccount(),req.getSessionId(), req.getRefreshToken());
             return Result.success("刷新成功", newTokens);
         } catch (IllegalArgumentException e) {
             return Result.error(e.getMessage());

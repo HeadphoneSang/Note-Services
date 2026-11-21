@@ -28,4 +28,13 @@ public class RedisConfig {
         script.setResultType(Long.class);   // Lua 返回 1/0
         return script;
     }
+
+    @Bean(name = "swapRefresh")
+    public RedisScript<Long> swapRefreshScript() {
+        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+        script.setScriptSource(new ResourceScriptSource(
+                new ClassPathResource("lua/swapRefreshScript.lua")));
+        script.setResultType(Long.class);   // Lua 返回 1/0
+        return script;
+    }
 }

@@ -20,7 +20,7 @@ public class AuthServiceConfig {
     }
 
     @Bean
-    public RedisAuthService redisAuthService(StringRedisTemplate stringRedisTemplate, @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript) {
-        return new RedisAuthService(stringRedisTemplate, expireAndCheckScript);
+    public RedisAuthService redisAuthService(StringRedisTemplate stringRedisTemplate, @Qualifier("expireAndCheck") RedisScript<Long> expireAndCheckScript, @Qualifier("swapRefresh") RedisScript<Long> swapRefreshScript) {
+        return new RedisAuthService(stringRedisTemplate, expireAndCheckScript, swapRefreshScript);
     }
 }
